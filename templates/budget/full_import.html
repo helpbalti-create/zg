@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+{% block title %}Полный импорт проекта из Excel{% endblock %}
+{% block page_title %}Импорт проекта из Excel{% endblock %}
+
+{% block extra_css %}
+<style>
+.imp-card{border:none;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.1);overflow:hidden;}
+.imp-card .card-header{background:linear-gradient(135deg,#1a3a5c,#2d6196);color:#fff;padding:18px 24px;border:none;}
+.step-badge{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#1a5fa8;color:#fff;font-weight:700;font-size:.82rem;flex-shrink:0;}
+
+/* Предпросмотр */
+.section-hdr{background:#e8f0fb;padding:9px 16px;border-radius:8px;margin:14px 0 6px;font-size:.79rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#1a3a5c;}
+.cat-row{border:1px solid #e5e7eb;border-radius:10px;padding:11px 15px;margin-bottom:6px;background:#fff;}
+.code-chip{font-family:monospace;font-weight:700;font-size:.77rem;color:#1e5fa8;background:#dbeafe;padding:2px 8px;border-radius:4px;}
+.period-pills{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px;}
+.pill{font-size:.7rem;padding:2px 8px;border-radius:20px;background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;}
+.summary-box{background:#f0fdf4;border:1.5px solid #6ee7b7;border-radius:12px;padding:16px 22px;}
+.warn-box{background:#fef9c3;border:1.5px solid #fcd34d;border-radius:12px;padding:12px 18px;font-size:.84rem;}
+.danger-box{background:#fee2e2;border:1.5px solid #fca5a5;border-radius:10px;padding:12px 18px;font-size:.84rem;}
+
+.upload-zone{border:2px dashed #93c5fd;border-radius:14px;padding:36px;text-align:center;cursor:pointer;transition:all .2s;background:#f0f7ff;}
+.upload-zone:hover{border-color:#3b82f6;background:#e0f2fe;}
+.upload-zone input[type=file]{display:none;}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-10">
+
+{# ══════════════════════════════════════════════════════════════
+   ШАГ 1: форма загрузки
+══════════════════════════════════════════════════════════════ #}
+{% if not preview and not done %}
+<div class="card imp-card mb-4">
+  <div class="card-header">
+    <h5 class="mb-0 fw-bold"><i class="bi bi-cloud-upload me-2"></i>Создать проект из Excel-файла бюджета</h5>
+    <small style="opacity:.75;">Секции, статьи и расходы по периодам — одним действием</small>
+  </div>
+  <div class="card-body p-4">
+
+    {% if messages %}
+      {% for m in messages %}
+      <div class="alert alert-{{ m.tags|default:'info' }} mb-3">{{ m }}</div>
+      {% endfor %}
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" id="upload-form">
+      {% csrf_token %}
+      <input type="hidden" name="step" value="preview">
+
+      <div class="mb-4">
+        <div class="upload-zone" onclick="document.getElementById('xlsx-file').click()" id="drop-zone">
+          <i class="bi bi-file-earmark-excel" style="font-size:2.8rem;color:#22c55e;"></i>
+          <div style="font-size:1.05rem;font-weight:600;margin:10px 0 4px;">Нажмите или перетащите .xlsx файл</div>
+          <div style="font-size:.82rem;color:#6b7280;" id="file-label">Файл не выбран</div>
+          <input type="file" name="xlsx_file" id="xlsx-file" accept=".xlsx" required
+                 onchange="document.getElementById('file-label').textContent = this.files[0]?.name || 'Файл не выбран'">
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">
+          <span class="step-badge me-2">!</span>
+          Что делать если проект с таким названием уже существует?
+        </label>
+        <select name="existing_action" class="form-select">
+          <option value="error">Остановить — показать ошибку</option>
+          <option value="replace" selected>Удалить старый и создать новый (с расходами)</option>
+          <option value="skip">Пропустить создание проекта, только добавить расходы</option>
+        </select>
+      </div>
+
+      <div class="warn-box mb-4">
+        <i class="bi bi-info-circle me-2"></i>
+        <strong>Как создаются расходы:</strong> для каждой статьи бюджета с ненулевой стоимостью единицы
+        система создаёт по одному расходу на каждый период (месяц). Сумма = <code>quantity × unit_cost</code>.
+        Описание из поля <em>BUDGET NOTES</em> переносится в поле "Описание" расхода.
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-lg w-100 fw-semibold">
+        <i class="bi bi-eye me-2"></i>Предпросмотр импорта
+      </button>
+    </form>
+  </div>
+</div>
+
+{# ══════════════════════════════════════════════════════════════
+   ШАГ 2: предпросмотр
+══════════════════════════════════════════════════════════════ #}
+{% elif preview and not done %}
+<div class="card imp-card mb-4">
+  <div class="card-header">
+    <h5 class="mb-0 fw-bold"><i class="bi bi-eye me-2"></i>Предпросмотр импорта</h5>
+    <small style="opacity:.75;">Проверьте данные перед подтверждением</small>
+  </div>
+  <div class="card-body p-4">
+
+    {# Мета проекта #}
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px 18px;margin-bottom:20px;">
+      <div class="row g-2" style="font-size:.84rem;">
+        <div class="col-md-6"><span style="color:#6b7280;">Название:</span> <strong>{{ preview.name }}</strong></div>
+        <div class="col-md-3"><span style="color:#6b7280;">Код:</span> <strong>{{ preview.project_code }}</strong></div>
+        <div class="col-md-3"><span style="color:#6b7280;">Бюджет:</span> <strong>${{ preview.total_budget }}</strong></div>
+        <div class="col-md-6"><span style="color:#6b7280;">Донор:</span> {{ preview.donor }}</div>
+        <div class="col-md-3"><span style="color:#6b7280;">Старт:</span> {{ preview.start_date }}</div>
+        <div class="col-md-3"><span style="color:#6b7280;">Конец:</span> {{ preview.end_date }}</div>
+      </div>
+    </div>
+
+    {% if preview.existing_warning %}
+    <div class="danger-box mb-3">
+      <i class="bi bi-exclamation-triangle me-2"></i>
+      <strong>Внимание:</strong> {{ preview.existing_warning }}
+    </div>
+    {% endif %}
+
+    {# Список статей и периодов #}
+    {% for sec in preview.sections %}
+    <div class="section-hdr">
+      Секция {{ sec.code }}: {{ sec.name }}
+      <span style="float:right;font-weight:400;">{{ sec.cat_count }} статей · ${{ sec.allocated|floatformat:2 }}</span>
+    </div>
+    {% for cat in sec.categories %}
+    <div class="cat-row">
+      <div class="d-flex align-items-start gap-2 flex-wrap">
+        <span class="code-chip mt-1">{{ cat.code|default:"—" }}</span>
+        <div style="flex:1;min-width:180px;">
+          <div style="font-weight:600;font-size:.87rem;">{{ cat.name }}</div>
+          <div style="font-size:.75rem;color:#6b7280;margin-top:2px;">
+            {{ cat.qty }} {{ cat.unit }} × ${{ cat.unit_cost }}
+            = <strong>${{ cat.amount_per_period }}</strong>/период
+            · {{ cat.frequency }} период(а)
+            · итого <strong>${{ cat.total_amount }}</strong>
+          </div>
+          {% if cat.notes %}
+          <div style="font-size:.73rem;color:#9ca3af;margin-top:2px;font-style:italic;">{{ cat.notes|truncatechars:110 }}</div>
+          {% endif %}
+        </div>
+        <span class="badge bg-success align-self-start">{{ cat.frequency }} расх.</span>
+      </div>
+      <div class="period-pills">
+        {% for p in cat.periods %}
+        <span class="pill">П{{ p.num }} · {{ p.date }} · ${{ p.amount }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+    {% endfor %}
+
+    {# Итог и кнопки #}
+    <div class="summary-box my-4">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+        <div>
+          <div style="font-size:.8rem;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;">Будет создано</div>
+          <div style="font-size:1.25rem;font-weight:800;color:#065f46;">
+            {{ preview.total_expenses }} расходов · ${{ preview.total_expenses_amount|floatformat:2 }}
+          </div>
+          <div style="font-size:.8rem;color:#6b7280;">
+            {{ preview.total_cats }} статей в {{ preview.total_sections }} секциях
+          </div>
+        </div>
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <input type="hidden" name="step" value="confirm">
+          <input type="hidden" name="cached_data" value="{{ preview.cache_key }}">
+          <input type="hidden" name="existing_action" value="{{ preview.existing_action }}">
+          <button type="submit" class="btn btn-success btn-lg fw-semibold" style="padding:12px 32px;">
+            <i class="bi bi-check-circle me-2"></i>Подтвердить и создать
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <a href="{% url 'full_import' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Назад / другой файл
+    </a>
+  </div>
+</div>
+
+{# ══════════════════════════════════════════════════════════════
+   ШАГ 3: результат
+══════════════════════════════════════════════════════════════ #}
+{% elif done %}
+<div class="card imp-card mb-4">
+  <div class="card-header" style="background:linear-gradient(135deg,#065f46,#059669);">
+    <h5 class="mb-0 fw-bold"><i class="bi bi-check-circle me-2"></i>Импорт завершён успешно!</h5>
+  </div>
+  <div class="card-body p-4">
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <div style="background:#f0fdf4;border-radius:12px;padding:16px;text-align:center;">
+          <div style="font-size:2rem;font-weight:800;color:#065f46;">{{ result.sections }}</div>
+          <div style="font-size:.78rem;color:#6b7280;text-transform:uppercase;">Секций</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div style="background:#eff6ff;border-radius:12px;padding:16px;text-align:center;">
+          <div style="font-size:2rem;font-weight:800;color:#1e5fa8;">{{ result.categories }}</div>
+          <div style="font-size:.78rem;color:#6b7280;text-transform:uppercase;">Статей</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div style="background:#fef9c3;border-radius:12px;padding:16px;text-align:center;">
+          <div style="font-size:2rem;font-weight:800;color:#854d0e;">{{ result.expenses }}</div>
+          <div style="font-size:.78rem;color:#6b7280;text-transform:uppercase;">Расходов</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div style="background:#fdf2f8;border-radius:12px;padding:16px;text-align:center;">
+          <div style="font-size:1.4rem;font-weight:800;color:#6b21a8;">${{ result.total_amount|floatformat:2 }}</div>
+          <div style="font-size:.78rem;color:#6b7280;text-transform:uppercase;">Общая сумма</div>
+        </div>
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'project_detail' result.project_pk %}" class="btn btn-success btn-lg fw-semibold">
+        <i class="bi bi-folder2-open me-1"></i>Открыть проект
+      </a>
+      <a href="{% url 'full_import' %}" class="btn btn-outline-secondary">
+        Импортировать ещё один файл
+      </a>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+</div>
+</div>
+
+<script>
+// drag & drop
+const zone = document.getElementById('drop-zone');
+if (zone) {
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor='#3b82f6'; });
+  zone.addEventListener('dragleave', () => { zone.style.borderColor='#93c5fd'; });
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    const f = e.dataTransfer.files[0];
+    if (f) {
+      document.getElementById('xlsx-file').files = e.dataTransfer.files;
+      document.getElementById('file-label').textContent = f.name;
+    }
+    zone.style.borderColor='#93c5fd';
+  });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends 'people/base.html' %}
+{% block title %}Семьи{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="fw-bold mb-0">Семьи</h4>
+  <a href="{% url 'people:family_create' %}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Создать семью</a>
+</div>
+<div class="card p-3 mb-3">
+  <form method="get" class="d-flex gap-2">
+    <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Поиск по названию...">
+    <button class="btn btn-outline-secondary"><i class="bi bi-search"></i></button>
+  </form>
+</div>
+<div class="row g-3">
+  {% for family in families %}
+  <div class="col-md-6 col-lg-4">
+    <div class="card p-3 h-100">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <h6 class="fw-bold mb-0"><a href="{% url 'people:family_detail' family.pk %}" class="text-decoration-none">{{ family.name }}</a></h6>
+        <span class="badge bg-primary-subtle text-primary">{{ family.member_count }} чел.</span>
+      </div>
+      {% if family.address %}<div class="text-muted small mb-2"><i class="bi bi-geo-alt me-1"></i>{{ family.address }}</div>{% endif %}
+      <div class="mt-auto">
+        {% for m in family.members.all %}
+          <span class="badge bg-light text-dark border me-1 mb-1">
+            {{ m.person.full_name }}
+            {% if m.is_head %}<i class="bi bi-star-fill text-warning ms-1"></i>{% endif %}
+          </span>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  <div class="col-12 text-center text-muted py-5">Семей пока нет</div>
+  {% endfor %}
+</div>
+{% endblock %}

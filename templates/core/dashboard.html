@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Портал — Здоровый Город{% endblock %}
+{% block page_title %}Главная{% endblock %}
+
+{% block content %}
+<div class="row g-3 mb-4">
+  <div class="col-12">
+    <h4 class="fw-bold mb-0">
+      <i class="bi bi-heart-pulse-fill text-danger me-2"></i>
+      Добро пожаловать, {{ user.full_name|default:user.email }}!
+    </h4>
+    <p class="text-muted small">НКО «Здоровый Город» — выберите раздел для работы</p>
+  </div>
+</div>
+
+{% if app_cards %}
+<div class="row g-3">
+  {% for app in app_cards %}
+  <div class="col-md-5">
+    <a href="{{ app.url }}" class="text-decoration-none">
+      <div class="card h-100" style="border-left: 4px solid {{ app.color }}; transition: box-shadow .15s, transform .15s;"
+           onmouseover="this.style.boxShadow='0 6px 24px rgba(0,0,0,.12)';this.style.transform='translateY(-2px)'"
+           onmouseout="this.style.boxShadow='';this.style.transform=''">
+        <div class="card-body p-4">
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <div class="rounded-3 p-2" style="background:{{ app.color }}20">
+              <i class="bi {{ app.icon }} fs-3" style="color:{{ app.color }}"></i>
+            </div>
+            <h5 class="fw-bold mb-0" style="color:#1a3a5c">{{ app.title }}</h5>
+          </div>
+          <p class="text-muted mb-0">{{ app.desc }}</p>
+          <div class="mt-3">
+            <span class="btn btn-sm" style="background:{{ app.color }};color:#fff;border:none">
+              Открыть <i class="bi bi-arrow-right ms-1"></i>
+            </span>
+          </div>
+        </div>
+      </div>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body text-center py-5">
+    <i class="bi bi-lock fs-1 text-muted"></i>
+    <h5 class="mt-3">Нет доступных разделов</h5>
+    <p class="text-muted">Обратитесь к администратору для настройки прав доступа.</p>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

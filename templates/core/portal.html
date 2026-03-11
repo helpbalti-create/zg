@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Здоровый Город — Портал</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0f14;
+      --surface: #161820;
+      --border: #252830;
+      --text: #e8eaf0;
+      --muted: #6b7080;
+      --budget: #3b82f6;
+      --budget-glow: rgba(59,130,246,.18);
+      --people: #10b981;
+      --people-glow: rgba(16,185,129,.18);
+    }
+
+    body {
+      font-family: 'Onest', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      overflow-x: hidden;
+    }
+
+    /* grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 3.5rem;
+      animation: fadeDown .5s ease both;
+    }
+
+    .logo {
+      font-size: .75rem;
+      letter-spacing: .25em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-family: 'JetBrains Mono', monospace;
+      margin-bottom: .75rem;
+    }
+
+    h1 {
+      font-size: clamp(1.8rem, 4vw, 3rem);
+      font-weight: 700;
+      letter-spacing: -.03em;
+      line-height: 1.1;
+    }
+
+    .greeting {
+      margin-top: .5rem;
+      color: var(--muted);
+      font-size: .95rem;
+    }
+
+    .greeting strong { color: var(--text); }
+
+    /* cards grid */
+    .apps {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      animation: fadeUp .5s .1s ease both;
+    }
+
+    .app-card {
+      position: relative;
+      width: 280px;
+      padding: 2rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      text-decoration: none;
+      color: inherit;
+      transition: transform .2s, border-color .2s, box-shadow .2s;
+      overflow: hidden;
+    }
+
+    .app-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity .25s;
+    }
+
+    .app-card.budget::before  { background: radial-gradient(circle at 30% 20%, var(--budget-glow), transparent 70%); }
+    .app-card.people::before  { background: radial-gradient(circle at 30% 20%, var(--people-glow), transparent 70%); }
+
+    .app-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 40px rgba(0,0,0,.4);
+    }
+
+    .app-card.budget:hover  { border-color: var(--budget); }
+    .app-card.people:hover  { border-color: var(--people); }
+    .app-card:hover::before { opacity: 1; }
+
+    .icon {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      display: block;
+    }
+
+    .app-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: .5rem;
+      letter-spacing: -.02em;
+    }
+
+    .app-desc {
+      font-size: .875rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .arrow {
+      position: absolute;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .9rem;
+      transition: border-color .2s, background .2s;
+    }
+
+    .app-card.budget .arrow  { color: var(--budget); }
+    .app-card.people .arrow  { color: var(--people); }
+    .app-card:hover .arrow   { background: var(--border); }
+
+    /* no apps state */
+    .no-apps {
+      text-align: center;
+      color: var(--muted);
+      padding: 3rem;
+      border: 1px dashed var(--border);
+      border-radius: 16px;
+      max-width: 360px;
+    }
+
+    .no-apps .emoji { font-size: 2.5rem; margin-bottom: 1rem; }
+
+    /* footer */
+    footer {
+      margin-top: 3rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: .8rem;
+      font-family: 'JetBrains Mono', monospace;
+      animation: fadeUp .5s .2s ease both;
+    }
+
+    footer a {
+      color: var(--muted);
+      text-decoration: none;
+      transition: color .15s;
+    }
+    footer a:hover { color: var(--text); }
+
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <p class="logo">Здоровый Город · Портал</p>
+  <h1>Добро пожаловать</h1>
+  <p class="greeting">Привет, <strong>{{ request.user.get_short_name }}</strong> — выберите раздел</p>
+</header>
+
+{% if apps %}
+<div class="apps">
+  {% for app in apps %}
+  <a href="{{ app.url }}" class="app-card {{ app.slug }}">
+    <span class="icon">{{ app.icon }}</span>
+    <div class="app-title">{{ app.title }}</div>
+    <p class="app-desc">{{ app.description }}</p>
+    <span class="arrow">→</span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="no-apps">
+  <div class="emoji">⏳</div>
+  <p>Ни одного приложения не назначено.<br>Обратитесь к администратору.</p>
+</div>
+{% endif %}
+
+<footer>
+  <a href="/admin/">⚙ Администрирование</a>
+  &nbsp;·&nbsp;
+  <a href="/accounts/profile/">Профиль</a>
+  &nbsp;·&nbsp;
+  <form method="post" action="/accounts/logout/" style="display:inline">
+    {% csrf_token %}
+    <button type="submit" style="background:none;border:none;color:var(--muted);cursor:pointer;font-family:inherit;font-size:.8rem;padding:0;transition:color .15s"
+            onmouseover="this.style.color='#e8eaf0'" onmouseout="this.style.color='#6b7080'">
+      Выйти
+    </button>
+  </form>
+</footer>
+
+</body>
+</html>

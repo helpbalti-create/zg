@@ -1,0 +1,32 @@
+# ─── CORE ─────────────────────────────────────────────────────────────────────
+Django>=4.2,<5.0
+openpyxl>=3.1.0
+Pillow>=10.0.0
+
+# Environment variable management (replaces hard-coded secrets)
+python-decouple>=3.8
+
+# ─── PASSWORD HASHING — Argon2 (OWASP recommended) ───────────────────────────
+argon2-cffi>=23.1.0
+
+# ─── REST API + JWT ───────────────────────────────────────────────────────────
+djangorestframework>=3.14.0
+djangorestframework-simplejwt>=5.3.0
+
+# ─── SOCIAL OAUTH2 (Google, GitHub) ──────────────────────────────────────────
+django-allauth>=0.63.0
+
+# ─── BRUTE-FORCE PROTECTION ───────────────────────────────────────────────────
+django-axes>=6.4.0
+
+# ─── TWO-FACTOR AUTHENTICATION (TOTP — Google Authenticator / Authy) ─────────
+django-otp>=1.3.0
+django-two-factor-auth>=1.15.0
+qrcode>=7.4.2
+python-dateutil
+
+# ─── INSTALLATION ORDER (pip install) ────────────────────────────────────────
+# pip install Django argon2-cffi python-decouple djangorestframework \
+#             djangorestframework-simplejwt django-allauth django-axes \
+#             django-otp django-two-factor-auth qrcode Pillow openpyxl
+

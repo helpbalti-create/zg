@@ -1,0 +1,99 @@
+{% extends 'people/base.html' %}
+{% block title %}{{ person.full_name }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+  <div>
+    <a href="{% url 'people:person_list' %}" class="text-muted text-decoration-none"><i class="bi bi-arrow-left"></i> Назад</a>
+    <h4 class="fw-bold mt-1 mb-0">{{ person.full_name }}</h4>
+    <div class="text-muted">
+      {% if person.birth_date %}{{ person.birth_date }}{% if person.age %} · {{ person.age }} лет{% endif %}{% endif %}
+      {% if person.gender %} · {{ person.get_gender_display }}{% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'people:person_edit' person.pk %}" class="btn btn-outline-primary"><i class="bi bi-pencil me-1"></i>Редактировать</a>
+    <a href="{% url 'people:person_delete' person.pk %}" class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i>Удалить</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Dynamic fields -->
+  <div class="col-lg-7">
+    <div class="card p-4">
+      <h6 class="fw-bold mb-3">Анкета</h6>
+      {% if grouped %}
+        {% for category, fvs in grouped.items %}
+          <div class="field-group-title mt-3">{{ category }}</div>
+          {% for fv in fvs %}
+            {% if fv.value %}
+              <div class="d-flex mb-2">
+                <div class="text-muted" style="min-width:180px;font-size:.9rem;">{{ fv.field.label }}</div>
+                <div class="fw-semibold" style="font-size:.9rem;">{{ fv.value }}</div>
+              </div>
+            {% endif %}
+          {% endfor %}
+        {% endfor %}
+      {% else %}
+        <div class="text-muted">Дополнительные данные не заполнены.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <!-- Families -->
+    <div class="card p-3 mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="fw-bold mb-0"><i class="bi bi-house me-2"></i>Семьи</h6>
+      </div>
+      {% for m in families %}
+        <div class="d-flex align-items-center justify-content-between py-2 border-bottom">
+          <div>
+            <a href="{% url 'people:family_detail' m.family.pk %}" class="fw-semibold text-decoration-none">{{ m.family.name }}</a>
+            {% if m.role %}<span class="badge bg-light text-dark ms-1">{{ m.role.name }}</span>{% endif %}
+            {% if m.is_head %}<span class="badge bg-warning text-dark ms-1">Глава</span>{% endif %}
+          </div>
+          <form method="post" action="{% url 'people:family_remove_member' m.family.pk person.pk %}" class="d-inline">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-x-lg"></i></button>
+          </form>
+        </div>
+      {% empty %}
+        <div class="text-muted mb-2">Не состоит в семьях</div>
+      {% endfor %}
+    </div>
+
+    <!-- Relationships -->
+    <div class="card p-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="fw-bold mb-0"><i class="bi bi-diagram-3 me-2"></i>Связи</h6>
+        <a href="{% url 'people:person_add_relationship' person.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus"></i></a>
+      </div>
+      {% for rel in outgoing %}
+        <div class="d-flex align-items-center justify-content-between py-2 border-bottom">
+          <div style="font-size:.9rem;">
+            <span class="badge bg-primary-subtle text-primary me-1">{{ rel.relationship_type.name }}</span>
+            <a href="{% url 'people:person_detail' rel.to_person.pk %}" class="text-decoration-none">{{ rel.to_person.full_name }}</a>
+            {% if rel.note %}<div class="text-muted" style="font-size:.8rem;">{{ rel.note }}</div>{% endif %}
+          </div>
+          <form method="post" action="{% url 'people:relationship_delete' rel.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-x-lg"></i></button>
+          </form>
+        </div>
+      {% endfor %}
+      {% for rel in incoming %}
+        <div class="d-flex align-items-center py-2 border-bottom" style="font-size:.9rem;">
+          <a href="{% url 'people:person_detail' rel.from_person.pk %}" class="text-decoration-none me-1">{{ rel.from_person.full_name }}</a>
+          <span class="badge bg-secondary-subtle text-secondary me-1">
+            {% if rel.relationship_type.reverse_name %}{{ rel.relationship_type.reverse_name }}{% else %}{{ rel.relationship_type.name }}{% endif %}
+          </span>
+          <span class="text-muted" style="font-size:.8rem;">(входящая)</span>
+        </div>
+      {% endfor %}
+      {% if not outgoing and not incoming %}
+        <div class="text-muted">Связей нет</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

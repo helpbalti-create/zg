@@ -1,0 +1,81 @@
+{% extends 'people/base.html' %}
+{% block title %}{{ action }}{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <a href="{% url 'people:person_list' %}" class="text-muted text-decoration-none"><i class="bi bi-arrow-left"></i> Назад</a>
+</div>
+<h4 class="fw-bold mb-4">{{ action }}</h4>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="row g-3">
+    <!-- Base fields -->
+    <div class="col-12">
+      <div class="card p-4">
+        <h6 class="fw-bold mb-3">Основные данные</h6>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">{{ form.full_name.label }} <span class="text-danger">*</span></label>
+            {{ form.full_name }}
+            {% if form.full_name.errors %}<div class="text-danger small">{{ form.full_name.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">{{ form.birth_date.label }}</label>
+            {{ form.birth_date }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">{{ form.gender.label }}</label>
+            {{ form.gender }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dynamic fields grouped by category -->
+    {% regroup field_defs by category as cat_groups %}
+    {% for cat_group in cat_groups %}
+    <div class="col-12">
+      <div class="card p-4">
+        <h6 class="fw-bold mb-3">{{ cat_group.grouper.name|default:"Дополнительно" }}</h6>
+        <div class="row g-3">
+          {% for fd in cat_group.list %}
+          <div class="col-md-6">
+            {% with field=form|dictsort:"dyn_"|add:fd.name %}
+            <label class="form-label fw-semibold">
+              {{ fd.label }}
+              {% if fd.required %}<span class="text-danger">*</span>{% endif %}
+            </label>
+            {{ form|dictsort:fd.name }}
+            {% endwith %}
+            {% if fd.help_text %}<div class="form-text">{{ fd.help_text }}</div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+
+    <!-- If no grouping available, show all dynamic fields -->
+    {% if not field_defs %}
+    <div class="col-12">
+      <div class="alert alert-info">
+        Дополнительных полей нет. <a href="/admin/people/fielddefinition/add/" target="_blank">Добавьте поля в панели админа</a>.
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="col-12 d-flex gap-2">
+      <button type="submit" class="btn btn-primary px-4">💾 Сохранить</button>
+      <a href="{% url 'people:person_list' %}" class="btn btn-outline-secondary">Отмена</a>
+    </div>
+  </div>
+</form>
+
+<script>
+// Add Bootstrap classes to all form inputs
+document.querySelectorAll('input:not([type=hidden]):not([type=checkbox]), select, textarea').forEach(el => {
+  el.classList.add('form-control');
+  if (el.tagName === 'SELECT') el.classList.replace('form-control', 'form-select');
+});
+</script>
+{% endblock %}

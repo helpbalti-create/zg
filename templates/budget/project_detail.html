@@ -1,0 +1,446 @@
+{% extends 'base.html' %}
+{% block title %}{{ project.name }}{% endblock %}
+{% block page_title %}{{ project.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Hero ─────────────────────────────────────── */
+.budget-hero{background:linear-gradient(135deg,#1a3a5c 0%,#2d6196 100%);border-radius:14px;padding:22px 26px;color:#fff;margin-bottom:18px;}
+.h-val{font-size:1.5rem;font-weight:700;line-height:1;}
+.h-lbl{font-size:.67rem;text-transform:uppercase;letter-spacing:.07em;opacity:.6;margin-top:3px;}
+.h-bar{height:9px;background:rgba(255,255,255,.2);border-radius:5px;overflow:hidden;margin-top:5px;}
+.h-bar-f{height:100%;border-radius:5px;transition:width .7s ease;}
+
+/* ── Tabs ─────────────────────────────────────── */
+.btabs{display:flex;border-bottom:2px solid #e9ecef;margin-bottom:18px;}
+.btab{padding:9px 18px;font-size:.84rem;font-weight:600;color:#6c757d;background:none;border:none;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .15s;}
+.btab.active{color:#1a3a5c;border-bottom-color:#1a3a5c;}
+.tab-p{display:none;}
+.tab-p.active{display:block;}
+
+/* ── Detail Budget Table (= Excel format) ─────── */
+.dbt{width:100%;border-collapse:collapse;font-size:.78rem;}
+.dbt th{
+  background:#1a3a5c;color:#fff;font-weight:700;font-size:.69rem;
+  text-transform:uppercase;letter-spacing:.05em;
+  padding:8px 8px;border:1px solid #2d5080;text-align:center;
+  white-space:nowrap;
+}
+.dbt td{padding:7px 8px;border:1px solid #dde3ef;vertical-align:middle;}
+.dbt .sec-row td{
+  background:#bdd7ee;color:#1a3a5c;font-weight:700;font-size:.8rem;
+  text-transform:uppercase;letter-spacing:.03em;border:1px solid #9dbedd;
+}
+.dbt .sub-row td{background:#ddebf7;font-weight:700;color:#1a3a5c;border:1px solid #b8d0e8;}
+.dbt .tot-row td{background:#1a3a5c;color:#fff;font-weight:700;border:1px solid #0f2847;}
+.dbt .over-row td{background:#ffc7ce;}
+.dbt .warn-row td{background:#fffff0;}
+.dbt tbody tr:not(.sec-row):not(.sub-row):not(.tot-row):hover{background:#f0f5ff;}
+.dbt .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;}
+.dbt .ctr{text-align:center;}
+.code-chip{font-family:monospace;font-size:.74rem;font-weight:700;color:#1e5fa8;background:#dbeafe;padding:1px 6px;border-radius:3px;}
+.spent-col{color:#dc3545;}
+.bal-pos{color:#198754;}
+.bal-neg{color:#dc3545;font-weight:700;}
+
+/* ── Mini progress ────────────────────────────── */
+.pb{display:flex;align-items:center;gap:5px;}
+.pb-bar{flex:1;height:5px;background:#e5e7eb;border-radius:3px;overflow:hidden;min-width:40px;}
+.pb-fill{height:100%;border-radius:3px;}
+
+/* ── Expense table ────────────────────────────── */
+.exp-ts{font-size:.68rem;color:#9ca3af;}
+.period-tag{font-size:.67rem;font-weight:700;padding:1px 7px;border-radius:10px;background:#e9ecef;color:#495057;}
+.filter-bar{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px;align-items:center;}
+.filter-bar .form-select{font-size:.8rem;padding:5px 10px;width:auto;}
+
+/* ── Code group rows ──────────────────────────── */
+.code-group-header td{
+  font-size:.71rem;font-weight:700;color:#1a3a5c;
+  border-top:2px solid #b0c8e8 !important;
+  border-left:3px solid #1a3a5c !important;
+  padding:4px 8px !important;
+}
+.code-group-footer td{
+  font-size:.72rem;font-weight:700;color:#1a3a5c;
+  background:rgba(0,0,0,.04) !important;
+  border-bottom:2px solid #b0c8e8 !important;
+}
+.code-group-solo td {
+  border-left:3px solid transparent !important;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ── HERO ──────────────────────────────────────────────────────────────── #}
+<div class="budget-hero">
+  <div class="row align-items-center g-3">
+    <div class="col-md-6">
+      <div style="font-size:1.1rem;font-weight:700;margin-bottom:4px;">{{ project.name }}</div>
+      <div style="font-size:.76rem;opacity:.7;">
+        {% if project.donor %}<i class="bi bi-building me-1"></i>{{ project.donor }}{% endif %}
+        {% if project.project_code %} · {{ project.project_code }}{% endif %}
+        · {{ project.start_date|date:"d.m.Y" }} — {{ project.end_date|date:"d.m.Y" }}
+        ({{ project.duration_months }} мес.)
+      </div>
+      {% if project.status == 'active' %}<span style="display:inline-flex;align-items:center;gap:5px;margin-top:8px;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600;background:rgba(40,167,69,.25);color:#8fffa8;">● Активный</span>
+      {% elif project.status == 'completed' %}<span style="margin-top:8px;display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600;background:rgba(255,255,255,.15);color:#fff;">✓ Завершён</span>{% endif %}
+    </div>
+    <div class="col-md-6">
+      <div class="row g-2 text-center mb-2">
+        <div class="col-4"><div class="h-val" style="color:#7fffc4;">${{ project.total_budget|floatformat:0 }}</div><div class="h-lbl">Всего выделено</div></div>
+        <div class="col-4"><div class="h-val" style="color:{% if project.spent_percent >= 100 %}#ff7675{% elif project.spent_percent >= 80 %}#ffd93d{% else %}#74b9ff{% endif %};">${{ project.total_spent|floatformat:0 }}</div><div class="h-lbl">Потрачено ({{ project.spent_percent }}%)</div></div>
+        <div class="col-4"><div class="h-val" style="color:{% if project.total_remaining < 0 %}#ff7675{% else %}#a8edea{% endif %};">${{ project.total_remaining|floatformat:0 }}</div><div class="h-lbl">Остаток</div></div>
+      </div>
+      <div style="font-size:.7rem;opacity:.6;margin-bottom:3px;display:flex;justify-content:space-between;"><span>Использование бюджета</span><span>{{ project.spent_percent }}%</span></div>
+      <div class="h-bar"><div class="h-bar-f" style="width:{% if project.spent_percent > 100 %}100{% else %}{{ project.spent_percent }}{% endif %}%;background:{% if project.spent_percent >= 100 %}#ff7675{% elif project.spent_percent >= 80 %}#ffd93d{% else %}#55efc4{% endif %};"></div></div>
+    </div>
+  </div>
+</div>
+
+{# ── ACTIONS ───────────────────────────────────────────────────────────── #}
+<div class="d-flex gap-2 flex-wrap mb-4">
+  {% if can_edit and project.status == 'active' %}
+  <a href="{% url 'expense_add' project.pk %}" class="btn btn-primary"><i class="bi bi-plus-circle me-1"></i>Добавить расход</a>
+  <a href="{% url 'category_create' project.pk %}" class="btn btn-outline-primary"><i class="bi bi-list-plus me-1"></i>Новая статья</a>
+  <a href="{% url 'section_create' project.pk %}" class="btn btn-outline-secondary"><i class="bi bi-folder-plus me-1"></i>Новая секция</a>
+  <a href="{% url 'correction_add' project.pk %}" class="btn btn-outline-warning"><i class="bi bi-pencil-square me-1"></i>Корректировка</a>
+  <a href="{% url 'import_expenses' project.pk %}" class="btn btn-outline-info"><i class="bi bi-cloud-download me-1"></i>Импорт расходов</a>
+  <a href="{% url 'project_edit' project.pk %}" class="btn btn-outline-secondary"><i class="bi bi-gear me-1"></i>Настройки</a>
+  <a href="{% url 'project_complete' project.pk %}" class="btn btn-outline-danger"><i class="bi bi-flag me-1"></i>Завершить</a>
+  {% endif %}
+  <a href="{% url 'export_excel' project.pk %}" class="btn btn-success ms-auto"><i class="bi bi-file-earmark-excel me-1"></i>Экспорт в Excel</a>
+  <a href="{% url 'project_list' %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Назад</a>
+</div>
+
+{% if project.status == 'completed' %}
+<div class="alert alert-success d-flex align-items-center gap-2 mb-4" style="border-radius:10px;">
+  <i class="bi bi-check-circle-fill fs-5"></i>
+  <div><strong>Проект завершён</strong> {{ project.completed_at|date:"d.m.Y" }}{% if project.completion_note %} — {{ project.completion_note }}{% endif %}</div>
+</div>
+{% endif %}
+
+{# ── TABS ──────────────────────────────────────────────────────────────── #}
+<div class="btabs">
+  <button class="btab active" onclick="switchTab('budget',this)"><i class="bi bi-table me-1"></i>Смета (Detail Budget)</button>
+  <button class="btab" onclick="switchTab('expenses',this)"><i class="bi bi-receipt me-1"></i>История расходов</button>
+  {% if corrections %}<button class="btab" onclick="switchTab('corrections',this)"><i class="bi bi-clock-history me-1"></i>Корректировки</button>{% endif %}
+</div>
+
+{# ════════════ TAB 1: DETAIL BUDGET TABLE (= Excel format) ════════════════ #}
+<div id="tab-budget" class="tab-p active">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <div style="font-size:.74rem;color:#6c757d;">
+      <span class="me-3" style="background:#ffc7ce;padding:2px 8px;border-radius:4px;">Перерасход</span>
+      <span class="me-3" style="background:#fffff0;padding:2px 8px;border-radius:4px;">80–99%</span>
+      <span style="background:#e2efda;padding:2px 8px;border-radius:4px;">Норма</span>
+    </div>
+  </div>
+
+  <div class="table-responsive" style="border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.08);">
+  <table class="dbt">
+    <thead>
+      <tr>
+        <th style="width:36px;">#</th>
+        <th style="width:70px;">CODE</th>
+        <th style="text-align:left;min-width:220px;">BUDGET DESCRIPTION</th>
+        <th style="width:90px;">UNIT<br>MEASURE</th>
+        <th style="width:60px;">QTY</th>
+        <th style="width:80px;">UNIT<br>COST</th>
+        <th style="width:60px;">FREQ</th>
+        <th style="width:90px;">APPROVED<br>BUDGET</th>
+        <th style="width:90px;">TOTAL<br>EXPENSES</th>
+        <th style="width:90px;">BALANCE</th>
+        <th style="width:60px;">%</th>
+        {% if can_edit and project.status == 'active' %}<th style="width:60px;"></th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+
+    {# ── Sections with CODE GROUPS ───────────────────────────────────── #}
+    {% for sw in sections_with_groups %}
+    {% with section=sw.section %}
+
+      {# Section header row #}
+      <tr class="sec-row">
+        <td colspan="{% if can_edit and project.status == 'active' %}12{% else %}11{% endif %}">
+          <div class="d-flex align-items-center justify-content-between">
+            <span><i class="bi bi-folder2-open me-2"></i>SECTION {{ section.code }}: {{ section.name|upper }}</span>
+            <span style="font-weight:400;font-size:.75rem;color:#2d5080;">
+              Budget: ${{ section.total_allocated|floatformat:0 }} &nbsp;|&nbsp;
+              Spent: ${{ section.total_spent|floatformat:0 }} &nbsp;|&nbsp;
+              Balance: ${{ section.total_allocated|floatformat:0 }}
+            </span>
+            {% if can_edit and project.status == 'active' %}
+            <a href="{% url 'category_create' project.pk %}?section={{ section.pk }}" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:.72rem;"><i class="bi bi-plus"></i> Статья</a>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+
+      {# Code groups #}
+      {% for grp in sw.groups %}
+
+        {# Group header — only if multiple rows share this code #}
+        {% if grp.multi %}
+        <tr class="code-group-header" style="background:{{ grp.color }};">
+          <td colspan="{% if can_edit and project.status == 'active' %}12{% else %}11{% endif %}"
+              style="border-left:3px solid #1a3a5c !important;">
+            <div class="d-flex align-items-center gap-3">
+              <span class="code-chip" style="font-size:.77rem;">{{ grp.code|default:"—" }}</span>
+              <span style="font-size:.71rem;color:#495057;">{{ grp.categories|length }} строки · группа</span>
+              <span style="margin-left:auto;font-size:.71rem;color:#495057;">
+                Лимит группы: <strong>${{ grp.allocated|floatformat:2 }}</strong> &nbsp;|&nbsp;
+                Потрачено: <strong {% if grp.is_over %}style="color:#dc3545;"{% endif %}>${{ grp.spent|floatformat:2 }}</strong> &nbsp;|&nbsp;
+                Остаток: <strong class="{% if grp.remaining < 0 %}bal-neg{% else %}bal-pos{% endif %}">${{ grp.remaining|floatformat:2 }}</strong>
+                &nbsp;<span style="padding:1px 7px;border-radius:10px;font-weight:700;
+                  background:{% if grp.is_over %}#ffc7ce{% elif grp.is_warning %}#fff3cd{% else %}#d1e7dd{% endif %};
+                  color:{% if grp.is_over %}#842029{% elif grp.is_warning %}#664d03{% else %}#0f5132{% endif %};">
+                  {{ grp.pct }}%
+                </span>
+              </span>
+            </div>
+          </td>
+        </tr>
+        {% endif %}
+
+        {# Category rows inside this group #}
+        {% for cat in grp.categories %}
+        {% with pct=cat.spent_percent %}
+        <tr class="{% if cat.is_over_budget %}over-row{% elif cat.is_warning %}warn-row{% endif %} {% if not grp.multi %}code-group-solo{% endif %}"
+            style="{% if not cat.is_over_budget and not cat.is_warning %}background:{{ grp.color }};{% endif %}
+                   {% if grp.multi %}border-left:3px solid #1a3a5c !important;{% endif %}">
+          <td class="ctr" style="color:#6c757d;">{{ forloop.parentloop.parentloop.counter }}.{{ forloop.counter }}</td>
+          <td class="ctr"><span class="code-chip">{{ cat.code|default:"—" }}</span></td>
+          <td>
+            <div style="font-weight:500;color:#212529;">{{ cat.name }}</div>
+            {% if cat.notes %}<div style="font-size:.68rem;color:#9ca3af;margin-top:1px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ cat.notes|truncatechars:90 }}</div>{% endif %}
+          </td>
+          <td class="ctr" style="color:#6c757d;font-size:.76rem;">{{ cat.unit_measure|default:"—" }}</td>
+          <td class="num">{{ cat.quantity|floatformat:2 }}</td>
+          <td class="num">${{ cat.unit_cost|floatformat:2 }}</td>
+          <td class="num ctr">{{ cat.frequency|floatformat:0 }}</td>
+          <td class="num">${{ cat.allocated_amount|floatformat:2 }}</td>
+          <td class="num spent-col">${{ cat.total_spent|floatformat:2 }}</td>
+          <td class="num {% if cat.remaining < 0 %}bal-neg{% else %}bal-pos{% endif %}">${{ cat.remaining|floatformat:2 }}</td>
+          <td>
+            <div class="pb">
+              <div class="pb-bar"><div class="pb-fill" style="width:{% if pct > 100 %}100{% else %}{{ pct }}{% endif %}%;background:{% if cat.is_over_budget %}#dc3545{% elif cat.is_warning %}#ffc107{% else %}#28a745{% endif %};"></div></div>
+              <span style="font-size:.68rem;min-width:26px;text-align:right;{% if cat.is_over_budget %}color:#dc3545;font-weight:700;{% endif %}">{{ pct }}%</span>
+            </div>
+          </td>
+          {% if can_edit and project.status == 'active' %}
+          <td class="ctr">
+            <div class="d-flex gap-1 justify-content-center">
+              <a href="{% url 'category_detail' cat.pk %}" class="btn btn-outline-info btn-sm py-0 px-1" title="Детали"><i class="bi bi-eye"></i></a>
+              <a href="{% url 'expense_add' project.pk %}?category={{ cat.pk }}" class="btn btn-outline-primary btn-sm py-0 px-1" title="Расход"><i class="bi bi-plus-circle"></i></a>
+              <a href="{% url 'category_edit' cat.pk %}" class="btn btn-outline-secondary btn-sm py-0 px-1" title="Изменить"><i class="bi bi-pencil"></i></a>
+            </div>
+          </td>
+          {% endif %}
+        </tr>
+        {% endwith %}
+        {% endfor %}{# end cats in group #}
+
+        {# Group footer subtotal — only if multiple rows #}
+        {% if grp.multi %}
+        <tr class="code-group-footer" style="background:{{ grp.color }};">
+          <td colspan="7" style="text-align:right;padding-right:12px;border-left:3px solid #1a3a5c !important;">
+            ∑ Итого по коду <span class="code-chip">{{ grp.code }}</span>
+          </td>
+          <td class="num">${{ grp.allocated|floatformat:2 }}</td>
+          <td class="num {% if grp.is_over %}bal-neg{% else %}spent-col{% endif %}">${{ grp.spent|floatformat:2 }}</td>
+          <td class="num {% if grp.remaining < 0 %}bal-neg{% else %}bal-pos{% endif %}">${{ grp.remaining|floatformat:2 }}</td>
+          <td class="ctr" style="font-weight:700;{% if grp.is_over %}color:#dc3545;{% endif %}">{{ grp.pct }}%</td>
+          {% if can_edit and project.status == 'active' %}<td></td>{% endif %}
+        </tr>
+        {% endif %}
+
+      {% endfor %}{# end groups #}
+
+      {% if not sw.groups %}
+      <tr><td colspan="{% if can_edit and project.status == 'active' %}12{% else %}11{% endif %}" class="text-center text-muted py-2" style="font-size:.8rem;background:#f8f9fa;">
+        Нет статей{% if can_edit and project.status == 'active' %} — <a href="{% url 'category_create' project.pk %}?section={{ section.pk }}">добавить</a>{% endif %}
+      </td></tr>
+      {% endif %}
+
+      {# Section subtotal #}
+      {% if section.categories.count %}
+      <tr class="sub-row">
+        <td colspan="7" style="text-align:right;padding-right:12px;">Sub-Total: Section {{ section.code }}</td>
+        <td class="num">${{ section.total_allocated|floatformat:2 }}</td>
+        <td class="num">${{ section.total_spent|floatformat:2 }}</td>
+        <td class="num {% if section.total_allocated < section.total_spent %}bal-neg{% else %}bal-pos{% endif %}">${{ section.total_allocated|floatformat:2 }}</td>
+        <td></td>
+        {% if can_edit and project.status == 'active' %}<td></td>{% endif %}
+      </tr>
+      {% endif %}
+
+    {% endwith %}
+    {% endfor %}{# end sections #}
+
+    {# Categories without section #}
+    {% if categories_no_section %}
+    <tr class="sec-row"><td colspan="{% if can_edit and project.status == 'active' %}12{% else %}11{% endif %}"><i class="bi bi-dash-circle me-2"></i>OTHER ITEMS (без секции)</td></tr>
+    {% for cat in categories_no_section %}
+    <tr>
+      <td class="ctr" style="color:#6c757d;">—</td>
+      <td class="ctr"><span class="code-chip">{{ cat.code|default:"—" }}</span></td>
+      <td style="font-weight:500;">{{ cat.name }}</td>
+      <td class="ctr" style="font-size:.76rem;color:#6c757d;">{{ cat.unit_measure|default:"—" }}</td>
+      <td class="num">{{ cat.quantity|floatformat:2 }}</td>
+      <td class="num">${{ cat.unit_cost|floatformat:2 }}</td>
+      <td class="num ctr">{{ cat.frequency|floatformat:0 }}</td>
+      <td class="num">${{ cat.allocated_amount|floatformat:2 }}</td>
+      <td class="num spent-col">${{ cat.total_spent|floatformat:2 }}</td>
+      <td class="num {% if cat.remaining < 0 %}bal-neg{% else %}bal-pos{% endif %}">${{ cat.remaining|floatformat:2 }}</td>
+      <td></td>
+      {% if can_edit and project.status == 'active' %}<td class="ctr"><a href="{% url 'expense_add' project.pk %}?category={{ cat.pk }}" class="btn btn-outline-primary btn-sm py-0 px-1"><i class="bi bi-plus-circle"></i></a></td>{% endif %}
+    </tr>
+    {% endfor %}
+    {% endif %}
+
+    {# GRAND TOTAL #}
+    <tr class="tot-row">
+      <td colspan="7" style="text-align:right;padding-right:14px;font-size:.9rem;">TOTAL GRANT BUDGET (A, B, C & D):</td>
+      <td class="num" style="color:#7fffc4;">${{ project.total_budget|floatformat:2 }}</td>
+      <td class="num" style="color:{% if project.spent_percent >= 100 %}#ff7675{% else %}#ffd580{% endif %};">${{ project.total_spent|floatformat:2 }}</td>
+      <td class="num" style="color:{% if project.total_remaining < 0 %}#ff7675{% else %}#a8edea{% endif %};">${{ project.total_remaining|floatformat:2 }}</td>
+      <td style="text-align:center;color:#a8edea;font-weight:700;">{{ project.spent_percent }}%</td>
+      {% if can_edit and project.status == 'active' %}<td></td>{% endif %}
+    </tr>
+
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{# ════════════ TAB 2: EXPENSES HISTORY ════════════════════════════════════ #}
+<div id="tab-expenses" class="tab-p">
+  <div class="filter-bar">
+    <select class="form-select" id="filterPeriod" onchange="filterExp()">
+      <option value="">Все периоды</option>
+      <option value="1">Период 1</option><option value="2">Период 2</option>
+      <option value="3">Период 3</option><option value="4">Период 4</option>
+      <option value="5">Период 5</option><option value="6">Период 6</option>
+    </select>
+    {% if can_edit and project.status == 'active' %}
+    <a href="{% url 'expense_add' project.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-circle me-1"></i>Добавить расход</a>
+    {% endif %}
+    <span id="expSum" style="margin-left:auto;font-size:.8rem;color:#6c757d;"></span>
+  </div>
+
+  <div style="border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.07);">
+  <table class="dbt" id="expTable">
+    <thead><tr>
+      <th style="text-align:left;width:100px;">Дата</th>
+      <th style="width:72px;">Код</th>
+      <th style="text-align:left;">Статья / Описание</th>
+      <th style="width:65px;">Период</th>
+      <th style="width:90px;">Документ №</th>
+      <th style="width:100px;">Сумма</th>
+      <th style="text-align:left;width:130px;">Зафиксировано</th>
+      <th style="text-align:left;width:110px;">Кто внёс</th>
+      {% if can_edit %}<th style="width:70px;"></th>{% endif %}
+    </tr></thead>
+    <tbody>
+    {% for expense in recent_expenses %}
+    <tr data-period="{{ expense.period }}">
+      <td>{{ expense.date|date:"d.m.Y" }}</td>
+      <td class="ctr"><span class="code-chip">{{ expense.category.code|default:"—" }}</span></td>
+      <td>
+        <div style="font-weight:500;">{{ expense.category.name|truncatechars:50 }}</div>
+        <div style="font-size:.71rem;color:#6c757d;">{{ expense.description|truncatechars:70 }}</div>
+      </td>
+      <td class="ctr"><span class="period-tag">П{{ expense.period }}</span></td>
+      <td class="ctr" style="font-size:.74rem;color:#6c757d;">{{ expense.document_number|default:"—" }}</td>
+      <td class="num" style="color:#dc3545;font-size:.9rem;">${{ expense.amount|floatformat:2 }}</td>
+      <td>
+        <div style="font-size:.73rem;color:#6c757d;">{{ expense.created_at|date:"d.m.Y H:i" }}</div>
+        <div class="exp-ts"><i class="bi bi-lock-fill"></i> авто</div>
+      </td>
+      <td style="font-size:.77rem;color:#6c757d;">{{ expense.created_by|default:"—" }}</td>
+      {% if can_edit %}
+      <td class="ctr">
+        <div class="d-flex gap-1 justify-content-center">
+          <a href="{% url 'expense_edit' expense.pk %}" class="btn btn-sm btn-outline-secondary py-0 px-1"><i class="bi bi-pencil"></i></a>
+          <form method="post" action="{% url 'expense_delete' expense.pk %}" class="d-inline" onsubmit="return confirm('Удалить?')">{% csrf_token %}
+            <button class="btn btn-sm btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
+          </form>
+        </div>
+      </td>
+      {% endif %}
+    </tr>
+    {% empty %}
+    <tr><td colspan="{% if can_edit %}9{% else %}8{% endif %}" class="text-center py-5 text-muted"><i class="bi bi-receipt" style="font-size:2rem;display:block;margin-bottom:8px;"></i>Расходов пока нет</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{# ════════════ TAB 3: CORRECTIONS ═════════════════════════════════════════ #}
+{% if corrections %}
+<div id="tab-corrections" class="tab-p">
+  <div style="border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.07);">
+  <table class="dbt">
+    <thead><tr>
+      <th style="width:100px;text-align:left;">Дата</th>
+      <th style="width:140px;">Тип</th>
+      <th style="text-align:left;">Статья</th>
+      <th style="width:100px;">Было</th>
+      <th style="width:100px;">Стало</th>
+      <th style="text-align:left;">Причина</th>
+      <th style="width:110px;text-align:left;">Кто</th>
+    </tr></thead>
+    <tbody>
+    {% for c in corrections %}
+    <tr>
+      <td>{{ c.date|date:"d.m.Y" }}<div class="exp-ts"><i class="bi bi-clock"></i> {{ c.created_at|date:"H:i" }}</div></td>
+      <td class="ctr"><span class="badge bg-warning text-dark">{{ c.get_correction_type_display }}</span></td>
+      <td>{{ c.category.name|default:"Весь проект"|truncatechars:40 }}</td>
+      <td class="ctr" style="color:#6c757d;">{{ c.old_value|default:"—" }}</td>
+      <td class="ctr" style="font-weight:600;">{{ c.new_value|default:"—" }}</td>
+      <td>{{ c.reason|truncatechars:60 }}</td>
+      <td style="font-size:.76rem;color:#6c757d;">{{ c.created_by|default:"—" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-p').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.btab').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'expenses') calcSum();
+}
+function filterExp() {
+  const p = document.getElementById('filterPeriod').value;
+  document.querySelectorAll('#expTable tbody tr[data-period]').forEach(r => {
+    r.style.display = (!p || r.dataset.period === p) ? '' : 'none';
+  });
+  calcSum();
+}
+function calcSum() {
+  const rows = [...document.querySelectorAll('#expTable tbody tr[data-period]')].filter(r => r.style.display !== 'none');
+  let total = 0;
+  rows.forEach(r => {
+    const txt = r.cells[5]?.textContent || '0';
+    total += parseFloat(txt.replace(/[$,]/g,'')) || 0;
+  });
+  document.getElementById('expSum').textContent =
+    `Записей: ${rows.length} · Итого: $${total.toLocaleString('en-US',{minimumFractionDigits:2})}`;
+}
+document.addEventListener('DOMContentLoaded', calcSum);
+</script>
+{% endblock %}

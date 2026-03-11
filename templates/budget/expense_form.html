@@ -1,0 +1,346 @@
+{% extends 'base.html' %}
+{% block title %}{% if expense %}Редактировать расход{% else %}Добавить расход{% endif %}{% endblock %}
+{% block page_title %}{% if expense %}Редактировать расход{% else %}Новый расход{% endif %} — {{ project.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.exp-card{border:none;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.1);overflow:hidden;}
+.exp-card .card-header{background:linear-gradient(135deg,#1a3a5c,#2d6196);color:#fff;padding:18px 24px;border:none;}
+
+/* Панель выбранной статьи */
+.cat-panel{border-radius:12px;padding:14px 18px;margin-bottom:20px;border:1.5px solid transparent;transition:all .3s;}
+.cat-panel.empty{background:#f3f4f6;border-color:#e5e7eb;display:none;}
+.cat-panel.ok{background:#d1fae5;border-color:#6ee7b7;}
+.cat-panel.warn{background:#fef9c3;border-color:#fcd34d;}
+.cat-panel.over{background:#fee2e2;border-color:#fca5a5;}
+
+.cat-panel-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.code-chip{font-family:monospace;font-size:.85rem;font-weight:700;color:#1e5fa8;background:#dbeafe;padding:3px 10px;border-radius:5px;}
+
+/* Блок формулы */
+.formula-block{background:#fff;border:1px solid #d1d5db;border-radius:12px;padding:16px 20px;margin-bottom:20px;}
+.formula-row{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;}
+.formula-cell{flex:1;min-width:100px;}
+.formula-cell label{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;display:block;margin-bottom:4px;}
+.formula-op{font-size:1.5rem;color:#9ca3af;padding-bottom:6px;flex:0 0 auto;}
+.formula-result{flex:1.4;min-width:130px;}
+.formula-result label{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:#1a5fa8;display:block;margin-bottom:4px;font-weight:700;}
+.formula-result .input-group-text{background:#e0f2fe;border-color:#7dd3fc;color:#0369a1;font-weight:700;}
+.formula-result input{border-color:#7dd3fc;font-weight:700;font-size:1.05rem;color:#0369a1;}
+.auto-badge{font-size:.68rem;color:#0369a1;margin-top:3px;display:none;}
+.auto-badge.show{display:block;}
+
+/* Прогресс-строки */
+.progress-rows{display:flex;flex-direction:column;gap:6px;margin-top:10px;}
+.progress-row{}
+.progress-row .pr-label{display:flex;justify-content:space-between;font-size:.72rem;color:#555;margin-bottom:2px;}
+.bar-wrap{height:7px;background:#e5e7eb;border-radius:4px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:4px;transition:width .5s;}
+
+.warn-msg{margin-top:8px;font-size:.78rem;font-weight:600;display:none;}
+</style>
+{% endblock %}
+
+{% block content %}
+{# Данные категорий для JS #}
+<script>
+const CATS = {
+{% for cat in form.category.field.queryset %}
+  "{{ cat.pk }}": {
+    code:        "{{ cat.code|default:'' }}",
+    name:        "{{ cat.name|escapejs }}",
+    section_code:"{{ cat.section.code|default:'—' }}",
+    section_name:"{{ cat.section.name|default:''|escapejs }}",
+    unit_measure:"{{ cat.unit_measure|default:'ед.'|escapejs }}",
+    unit_cost:   {{ cat.unit_cost }},
+    plan_qty:    {{ cat.quantity }},
+    frequency:   {{ cat.frequency }},
+    plan_total_qty: {{ cat.planned_total_qty }},
+    allocated:   {{ cat.allocated_amount }},
+    spent:       {{ cat.total_spent }},
+    used_qty:    {{ cat.total_quantity_spent }},
+  },
+{% endfor %}
+};
+</script>
+
+<div class="row justify-content-center">
+<div class="col-lg-8 col-md-10">
+<div class="card exp-card">
+  <div class="card-header">
+    <h5 class="mb-0 fw-bold"><i class="bi bi-receipt me-2"></i>{% if expense %}Редактировать расход{% else %}Новый расход{% endif %}</h5>
+    <small style="opacity:.75;">{{ project.name }}{% if project.project_code %} · {{ project.project_code }}{% endif %}</small>
+  </div>
+  <div class="card-body p-4">
+
+    <form method="post" enctype="multipart/form-data">{% csrf_token %}
+
+      {# ── 1. Выбор статьи ──────────────────────────────────────────── #}
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Статья расходов <span class="text-danger">*</span></label>
+        <select name="category" id="id_category" class="form-select" required>
+          <option value="">— Выберите статью —</option>
+          {% regroup form.category.field.queryset by section as section_groups %}
+          {% for sg in section_groups %}
+          <optgroup label="Секция {{ sg.grouper.code }}: {{ sg.grouper.name|upper }}">
+            {% for cat in sg.list %}
+            <option value="{{ cat.pk }}"
+              {% if form.category.value == cat.pk|stringformat:"s" %}selected{% endif %}>
+              [{{ cat.code|default:"—" }}] {{ cat.name|truncatechars:60 }}
+            </option>
+            {% endfor %}
+          </optgroup>
+          {% endfor %}
+        </select>
+        {% if form.category.errors %}<div class="text-danger small mt-1">{{ form.category.errors }}</div>{% endif %}
+      </div>
+
+      {# ── 2. Панель информации о статье ────────────────────────────── #}
+      <div id="cat-panel" class="cat-panel empty">
+        <div class="cat-panel-header">
+          <span id="cp-code" class="code-chip"></span>
+          <div>
+            <div id="cp-name" style="font-weight:600;font-size:.85rem;"></div>
+            <div id="cp-section" style="font-size:.72rem;color:#6b7280;"></div>
+          </div>
+          <div style="margin-left:auto;text-align:right;font-size:.78rem;color:#555;">
+            <span id="cp-unitcost" style="font-weight:700;font-size:.95rem;color:#1a5fa8;"></span>
+            &nbsp;/&nbsp;<span id="cp-unit"></span>
+          </div>
+        </div>
+
+        <div class="progress-rows">
+          <div class="progress-row">
+            <div class="pr-label">
+              <span>💰 Бюджет: использовано <strong id="cp-pct-money">0%</strong></span>
+              <span id="cp-money-vals">—</span>
+            </div>
+            <div class="bar-wrap"><div class="bar-fill" id="cp-bar-money" style="width:0%;background:#28a745;"></div></div>
+          </div>
+          <div class="progress-row" id="cp-qty-row" style="display:none;">
+            <div class="pr-label">
+              <span>📦 Единиц: использовано <strong id="cp-pct-qty">0%</strong></span>
+              <span id="cp-qty-vals">—</span>
+            </div>
+            <div class="bar-wrap"><div class="bar-fill" id="cp-bar-qty" style="width:0%;background:#3b82f6;"></div></div>
+          </div>
+        </div>
+
+        <div class="warn-msg" id="cp-warn"></div>
+      </div>
+
+      {# ── 3. Формула: Количество × Цена = Итого ───────────────────── #}
+      <div class="formula-block">
+        <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin-bottom:12px;">
+          <i class="bi bi-calculator me-1"></i>Расчёт суммы расхода
+        </div>
+        <div class="formula-row">
+
+          <div class="formula-cell">
+            <label>Количество<span class="text-danger">*</span></label>
+            <input type="number" name="quantity" id="id_quantity"
+                   class="form-control" step="0.01" min="0.01"
+                   value="{{ expense.quantity|default:'1' }}" required>
+            <div id="qty-unit-hint" style="font-size:.72rem;color:#6b7280;margin-top:2px;"></div>
+          </div>
+
+          <div class="formula-op">×</div>
+
+          <div class="formula-cell">
+            <label>Цена за 1 ед.</label>
+            <div class="input-group">
+              <span class="input-group-text">$</span>
+              <input type="number" id="id_unit_cost_view"
+                     class="form-control" step="0.01" min="0"
+                     placeholder="—" style="background:#f9fafb;" readonly>
+            </div>
+            <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">из статьи бюджета</div>
+          </div>
+
+          <div class="formula-op">=</div>
+
+          <div class="formula-result">
+            <label>Итого (сумма)</label>
+            <div class="input-group">
+              <span class="input-group-text">$</span>
+              <input type="number" name="amount" id="id_amount"
+                     class="form-control" step="0.01" min="0.01"
+                     value="{{ expense.amount|default:'' }}" required>
+            </div>
+            <div class="auto-badge" id="auto-badge">
+              <i class="bi bi-lightning-fill"></i> вычислено автоматически
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {# ── 4. Дата + Период ─────────────────────────────────────────── #}
+      <div class="row g-3 mb-3">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Дата <span class="text-danger">*</span></label>
+          <input type="date" name="date" id="id_date" class="form-control"
+                 value="{{ expense.date|date:'Y-m-d' }}" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Отчётный период</label>
+          {{ form.period }}
+        </div>
+      </div>
+
+      {# ── 5. Описание ──────────────────────────────────────────────── #}
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Описание <span class="text-danger">*</span></label>
+        <input type="text" name="description" id="id_description" class="form-control"
+               placeholder="Заправка автомобиля, выплата зарплаты..."
+               value="{{ expense.description|default:'' }}" required>
+      </div>
+
+      {# ── 6. Документ ──────────────────────────────────────────────── #}
+      <div class="row g-3 mb-4">
+        <div class="col-md-5">
+          <label class="form-label fw-semibold"><i class="bi bi-hash me-1"></i>Номер документа</label>
+          <input type="text" name="document_number" class="form-control"
+                 placeholder="№ чека, накладной"
+                 value="{{ expense.document_number|default:'' }}">
+        </div>
+        <div class="col-md-7">
+          <label class="form-label fw-semibold"><i class="bi bi-paperclip me-1"></i>Прикрепить документ</label>
+          <input type="file" name="attachment" class="form-control"
+                 accept="image/*,.pdf,.doc,.docx,.xls,.xlsx">
+          {% if expense.attachment %}
+          <div class="mt-1 small">
+            <a href="{{ expense.attachment.url }}" target="_blank" class="text-primary">Текущий файл</a>
+            <span class="text-muted ms-1">(загрузи новый чтобы заменить)</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-danger fw-semibold flex-grow-1" style="padding:10px;">
+          <i class="bi bi-check-lg me-1"></i>{% if expense %}Сохранить изменения{% else %}Зафиксировать расход{% endif %}
+        </button>
+        <a href="{% url 'project_detail' project.pk %}" class="btn btn-outline-secondary px-4">Отмена</a>
+      </div>
+    </form>
+  </div>
+</div>
+</div>
+</div>
+
+<script>
+const fmt      = v => '$' + parseFloat(v).toLocaleString('ru-RU', {minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtQty   = v => { v = parseFloat(v); return v % 1 === 0 ? v.toString() : v.toFixed(2); };
+const pct      = (a, b) => b > 0 ? Math.min(Math.round(a / b * 100), 100) : 0;
+const barColor = p => p >= 100 ? '#dc3545' : p >= 80 ? '#f59e0b' : '#22c55e';
+
+let currentUnitCost = 0;
+let userEditedAmount = false; // флаг: юзер вручную правил сумму
+
+function recalc() {
+  if (currentUnitCost <= 0) return;
+  if (userEditedAmount) return;
+  const qty = parseFloat(document.getElementById('id_quantity').value) || 0;
+  if (qty > 0) {
+    document.getElementById('id_amount').value = (qty * currentUnitCost).toFixed(2);
+    document.getElementById('auto-badge').classList.add('show');
+  }
+}
+
+function updatePanel(catPk) {
+  const panel = document.getElementById('cat-panel');
+  if (!catPk || !CATS[catPk]) {
+    panel.className = 'cat-panel empty';
+    currentUnitCost = 0;
+    document.getElementById('id_unit_cost_view').value = '';
+    return;
+  }
+
+  const c = CATS[catPk];
+  currentUnitCost = parseFloat(c.unit_cost) || 0;
+  userEditedAmount = false;
+
+  // Заголовок панели
+  document.getElementById('cp-code').textContent     = c.code || '—';
+  document.getElementById('cp-name').textContent     = c.name;
+  document.getElementById('cp-section').textContent  = c.section_code !== '—' ? `Секция ${c.section_code}: ${c.section_name}` : '';
+  document.getElementById('cp-unitcost').textContent = fmt(c.unit_cost);
+  document.getElementById('cp-unit').textContent     = c.unit_measure;
+
+  // Поле цены (read-only)
+  document.getElementById('id_unit_cost_view').value = parseFloat(c.unit_cost).toFixed(2);
+
+  // Подсказка единицы измерения
+  document.getElementById('qty-unit-hint').textContent = c.unit_measure;
+
+  // Прогресс по деньгам
+  const pctMoney = pct(c.spent, c.allocated);
+  const rem      = c.allocated - c.spent;
+  document.getElementById('cp-pct-money').textContent  = pctMoney + '%';
+  document.getElementById('cp-money-vals').textContent = fmt(c.spent) + ' / ' + fmt(c.allocated) + '  (ост. ' + fmt(rem) + ')';
+  document.getElementById('cp-bar-money').style.width  = pctMoney + '%';
+  document.getElementById('cp-bar-money').style.background = barColor(pctMoney);
+
+  // Прогресс по единицам (только если unit_cost > 0 и plan_total_qty > 0)
+  const qtyRow = document.getElementById('cp-qty-row');
+  if (currentUnitCost > 0 && c.plan_total_qty > 0) {
+    const pctQty  = pct(c.used_qty, c.plan_total_qty);
+    const remQty  = c.plan_total_qty - c.used_qty;
+    qtyRow.style.display = 'block';
+    document.getElementById('cp-pct-qty').textContent  = pctQty + '%';
+    document.getElementById('cp-qty-vals').textContent =
+      fmtQty(c.used_qty) + ' / ' + fmtQty(c.plan_total_qty) + ' ' + c.unit_measure + '  (ост. ' + fmtQty(remQty) + ')';
+    document.getElementById('cp-bar-qty').style.width      = pctQty + '%';
+    document.getElementById('cp-bar-qty').style.background = barColor(pctQty);
+  } else {
+    qtyRow.style.display = 'none';
+  }
+
+  // Предупреждение
+  const warnEl = document.getElementById('cp-warn');
+  if (c.spent > c.allocated) {
+    warnEl.style.display = 'block';
+    warnEl.style.color   = '#dc3545';
+    warnEl.textContent   = '🚨 По этой статье уже зафиксирован перерасход!';
+    panel.className = 'cat-panel over';
+  } else if (pctMoney >= 80) {
+    warnEl.style.display = 'block';
+    warnEl.style.color   = '#856404';
+    warnEl.textContent   = '⚠️ Использовано более 80% бюджета — будьте осторожны.';
+    panel.className = 'cat-panel warn';
+  } else {
+    warnEl.style.display = 'none';
+    panel.className = 'cat-panel ok';
+  }
+
+  // Авторасчёт суммы
+  recalc();
+}
+
+// Слушатели
+document.getElementById('id_category').addEventListener('change', function() {
+  updatePanel(this.value);
+});
+
+document.getElementById('id_quantity').addEventListener('input', function() {
+  userEditedAmount = false;
+  recalc();
+});
+
+document.getElementById('id_amount').addEventListener('input', function() {
+  // Юзер сам правит — не перезаписываем
+  userEditedAmount = true;
+  document.getElementById('auto-badge').classList.remove('show');
+});
+
+// Инициализация
+document.addEventListener('DOMContentLoaded', () => {
+  const sel = document.getElementById('id_category');
+  if (sel.value) updatePanel(sel.value);
+
+  const dateField = document.getElementById('id_date');
+  if (!dateField.value) dateField.value = new Date().toISOString().slice(0, 10);
+});
+</script>
+{% endblock %}

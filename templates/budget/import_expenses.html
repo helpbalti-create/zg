@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% block title %}Импорт расходов из бюджета — {{ project.name }}{% endblock %}
+{% block page_title %}Импорт расходов — {{ project.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.imp-card{border:none;border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,.09);}
+.imp-card .card-header{background:linear-gradient(135deg,#1a3a5c,#2d6196);color:#fff;padding:16px 22px;border:none;border-radius:14px 14px 0 0;}
+.section-hdr{background:#e8f0fb;padding:9px 16px;border-radius:8px;margin:18px 0 6px;font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#1a3a5c;}
+.cat-row{border:1px solid #e5e7eb;border-radius:10px;padding:12px 16px;margin-bottom:8px;background:#fff;}
+.cat-row.skip{background:#f9fafb;opacity:.55;}
+.code-chip{font-family:monospace;font-weight:700;font-size:.78rem;color:#1e5fa8;background:#dbeafe;padding:2px 8px;border-radius:4px;}
+.period-pills{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}
+.pill{font-size:.72rem;padding:2px 9px;border-radius:20px;background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;}
+.pill.skip{background:#f3f4f6;color:#9ca3af;border-color:#e5e7eb;}
+.summary-box{background:#f0fdf4;border:1.5px solid #6ee7b7;border-radius:12px;padding:14px 20px;}
+.warn-box{background:#fef9c3;border:1.5px solid #fcd34d;border-radius:12px;padding:12px 18px;font-size:.84rem;}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-10">
+
+{% if done %}
+  {# ── Результат ── #}
+  <div class="alert alert-success alert-dismissible d-flex align-items-center gap-3" role="alert">
+    <i class="bi bi-check-circle-fill fs-4"></i>
+    <div>
+      <strong>Импорт завершён!</strong> Создано расходов: <strong>{{ created_count }}</strong>
+      на общую сумму <strong>${{ total_amount|floatformat:2 }}</strong>.
+      {% if skipped_count %}<br><small class="text-muted">Пропущено (уже существуют): {{ skipped_count }}</small>{% endif %}
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  <a href="{% url 'project_detail' project.pk %}" class="btn btn-primary">
+    <i class="bi bi-arrow-left me-1"></i>Вернуться к проекту
+  </a>
+{% else %}
+  {# ── Предпросмотр ── #}
+  <div class="card imp-card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0 fw-bold"><i class="bi bi-cloud-download me-2"></i>Импорт расходов по периодам</h5>
+      <small style="opacity:.75;">{{ project.name }} · старт: {{ project.start_date|date:"d.m.Y" }}</small>
+    </div>
+    <div class="card-body p-4">
+
+      <div class="warn-box mb-4">
+        <i class="bi bi-info-circle me-2"></i>
+        <strong>Как работает импорт:</strong> для каждой статьи бюджета с указанной стоимостью единицы
+        создаётся по одному расходу на каждый период (месяц). Сумма каждого расхода =
+        <code>Количество × Стоимость единицы</code>. Расходы которые уже были импортированы — пропускаются.
+      </div>
+
+      {% for section_data in preview %}
+      <div class="section-hdr">{{ section_data.section }}</div>
+
+      {% for row in section_data.rows %}
+      <div class="cat-row {% if row.skip %}skip{% endif %}">
+        <div class="d-flex align-items-start gap-3 flex-wrap">
+          <span class="code-chip mt-1">{{ row.code }}</span>
+          <div style="flex:1;min-width:200px;">
+            <div style="font-weight:600;font-size:.88rem;">{{ row.name }}</div>
+            <div style="font-size:.76rem;color:#6b7280;margin-top:2px;">
+              {{ row.qty }} {{ row.unit }} × ${{ row.unit_cost }} = <strong>${{ row.amount_per_period }}</strong>/период
+              · {{ row.frequency }} период(а)
+              · итого <strong>${{ row.total_amount }}</strong>
+            </div>
+            {% if row.notes %}
+            <div style="font-size:.74rem;color:#9ca3af;margin-top:2px;font-style:italic;">{{ row.notes|truncatechars:120 }}</div>
+            {% endif %}
+          </div>
+          <div style="text-align:right;white-space:nowrap;">
+            {% if row.skip %}
+            <span class="badge bg-secondary">Пропуск (unit_cost=0)</span>
+            {% else %}
+            <span class="badge bg-success">{{ row.frequency }} расхода</span>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if not row.skip %}
+        <div class="period-pills">
+          {% for p in row.periods %}
+          <span class="pill {% if p.exists %}skip{% endif %}">
+            <i class="bi bi-{% if p.exists %}check{% else %}plus{% endif %} me-1"></i>
+            П{{ p.num }} · {{ p.date }} · ${{ p.amount }}
+            {% if p.exists %}(есть){% endif %}
+          </span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% endfor %}
+
+      <div class="summary-box my-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+          <div>
+            <div style="font-size:.8rem;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;">Итого будет создано</div>
+            <div style="font-size:1.3rem;font-weight:800;color:#065f46;">
+              {{ to_create }} расходов · ${{ total_to_create|floatformat:2 }}
+            </div>
+            {% if to_skip > 0 %}
+            <div style="font-size:.78rem;color:#9ca3af;">{{ to_skip }} уже существуют — будут пропущены</div>
+            {% endif %}
+          </div>
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="confirm" value="1">
+            <button type="submit" class="btn btn-success btn-lg fw-semibold" style="padding:12px 32px;"
+              {% if to_create == 0 %}disabled{% endif %}>
+              <i class="bi bi-check-circle me-2"></i>Подтвердить импорт
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <a href="{% url 'project_detail' project.pk %}" class="btn btn-outline-secondary">
+        <i class="bi bi-x me-1"></i>Отмена
+      </a>
+    </div>
+  </div>
+{% endif %}
+
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends 'people/base.html' %}
+{% block content %}
+<div class="card p-4" style="max-width:500px;margin:auto;">
+  <h5 class="fw-bold mb-3">⚠️ Удалить человека?</h5>
+  <p>Вы действительно хотите удалить <strong>{{ person.full_name }}</strong>? Это действие необратимо.</p>
+  <form method="post" class="d-flex gap-2">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">Удалить</button>
+    <a href="{% url 'people:person_detail' person.pk %}" class="btn btn-outline-secondary">Отмена</a>
+  </form>
+</div>
+{% endblock %}

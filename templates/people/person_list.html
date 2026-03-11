@@ -1,0 +1,47 @@
+{% extends 'people/base.html' %}
+{% block title %}Люди{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="fw-bold mb-0">Люди</h4>
+  <a href="{% url 'people:person_create' %}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Добавить</a>
+</div>
+
+<div class="card p-3 mb-3">
+  <form method="get" class="d-flex gap-2">
+    <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Поиск по имени...">
+    <button class="btn btn-outline-secondary"><i class="bi bi-search"></i></button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>ФИО</th><th>Пол</th><th>Дата рождения</th><th>Возраст</th><th>Семьи</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for person in people %}
+        <tr>
+          <td><a href="{% url 'people:person_detail' person.pk %}" class="fw-semibold text-decoration-none">{{ person.full_name }}</a></td>
+          <td>{{ person.get_gender_display|default:"—" }}</td>
+          <td>{{ person.birth_date|default:"—" }}</td>
+          <td>{% if person.age %}{{ person.age }} л.{% else %}—{% endif %}</td>
+          <td>
+            {% for m in person.family_memberships.all %}
+              <a href="{% url 'people:family_detail' m.family.pk %}" class="badge bg-light text-dark border me-1 text-decoration-none">{{ m.family.name }}</a>
+            {% empty %}—{% endfor %}
+          </td>
+          <td class="text-end">
+            <a href="{% url 'people:person_edit' person.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-4">Никого нет</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

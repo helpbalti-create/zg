@@ -1,0 +1,50 @@
+{% extends 'people/base.html' %}
+{% block title %}{{ family.name }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+  <div>
+    <a href="{% url 'people:family_list' %}" class="text-muted text-decoration-none"><i class="bi bi-arrow-left"></i> Назад</a>
+    <h4 class="fw-bold mt-1 mb-0"><i class="bi bi-house me-2"></i>{{ family.name }}</h4>
+    {% if family.address %}<div class="text-muted"><i class="bi bi-geo-alt me-1"></i>{{ family.address }}</div>{% endif %}
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'people:family_add_member' family.pk %}" class="btn btn-primary"><i class="bi bi-person-plus me-1"></i>Добавить</a>
+    <a href="{% url 'people:family_edit' family.pk %}" class="btn btn-outline-secondary"><i class="bi bi-pencil"></i></a>
+    <a href="{% url 'people:family_delete' family.pk %}" class="btn btn-outline-danger"><i class="bi bi-trash"></i></a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr><th>Имя</th><th>Роль</th><th>Дата рождения</th><th>Возраст</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for m in members %}
+        <tr>
+          <td>
+            <a href="{% url 'people:person_detail' m.person.pk %}" class="fw-semibold text-decoration-none">{{ m.person.full_name }}</a>
+            {% if m.is_head %}<span class="badge bg-warning text-dark ms-1">Глава</span>{% endif %}
+          </td>
+          <td>{% if m.role %}{{ m.role.name }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          <td>{{ m.person.birth_date|default:"—" }}</td>
+          <td>{% if m.person.age %}{{ m.person.age }} л.{% else %}—{% endif %}</td>
+          <td class="text-end">
+            <form method="post" action="{% url 'people:family_remove_member' family.pk m.person.pk %}" class="d-inline">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-danger"><i class="bi bi-person-x"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted py-4">Нет участников</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% if family.notes %}
+<div class="card p-3 mt-3"><strong>Примечания:</strong> {{ family.notes }}</div>
+{% endif %}
+{% endblock %}

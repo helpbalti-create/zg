@@ -1,0 +1,28 @@
+{% extends 'people/base.html' %}
+{% block content %}
+<div class="mb-3">
+  <a href="{% url 'people:person_detail' person.pk %}" class="text-muted text-decoration-none"><i class="bi bi-arrow-left"></i> Назад</a>
+</div>
+<h5 class="fw-bold mb-4">Добавить связь для {{ person.full_name }}</h5>
+<div class="card p-4" style="max-width:500px;">
+  <form method="post">
+    {% csrf_token %}
+    {% for field in form %}
+      <div class="mb-3">
+        <label class="form-label fw-semibold">{{ field.label }}</label>
+        {{ field }}
+        {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+      </div>
+    {% endfor %}
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-primary">Добавить связь</button>
+      <a href="{% url 'people:person_detail' person.pk %}" class="btn btn-outline-secondary">Отмена</a>
+    </div>
+  </form>
+</div>
+<script>
+document.querySelectorAll('input:not([type=hidden]), select, textarea').forEach(el => {
+  el.classList.add(el.tagName === 'SELECT' ? 'form-select' : 'form-control');
+});
+</script>
+{% endblock %}

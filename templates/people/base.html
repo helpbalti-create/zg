@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}CRM — Люди{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css">
+  <style>
+    body { background: #f5f7fa; }
+    .sidebar { min-height: 100vh; background: #1a2744; }
+    .sidebar a { color: #aab4d0; text-decoration: none; display: block; padding: .5rem 1rem; border-radius: 6px; }
+    .sidebar a:hover, .sidebar a.active { background: #2a3a64; color: #fff; }
+    .sidebar .nav-section { font-size: .7rem; text-transform: uppercase; color: #5a6a90; padding: .5rem 1rem; margin-top: .5rem; }
+    .card { border: none; box-shadow: 0 1px 6px rgba(0,0,0,.07); border-radius: 12px; }
+    .badge-role { font-size: .75rem; }
+    .field-group-title { font-size: .8rem; font-weight: 600; text-transform: uppercase; color: #888; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+<div class="d-flex">
+  <!-- Sidebar -->
+  <div class="sidebar p-3" style="width:220px; flex-shrink:0;">
+    <div class="text-white fw-bold mb-4 px-2" style="font-size:1.1rem;">
+      <i class="bi bi-people-fill me-2"></i>CRM
+    </div>
+    <div class="nav-section">Навигация</div>
+    <a href="{% url 'people:dashboard' %}" class="mb-1"><i class="bi bi-speedometer2 me-2"></i>Главная</a>
+    <a href="{% url 'people:person_list' %}" class="mb-1"><i class="bi bi-person-lines-fill me-2"></i>Люди</a>
+    <a href="{% url 'people:family_list' %}" class="mb-1"><i class="bi bi-house-heart me-2"></i>Семьи</a>
+    <div class="nav-section">Настройки</div>
+    <a href="/admin/people/" target="_blank" class="mb-1"><i class="bi bi-gear me-2"></i>Панель админа</a>
+  </div>
+
+  <!-- Main -->
+  <div class="flex-grow-1 p-4">
+    {% if messages %}
+      {% for msg in messages %}
+        <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show" role="alert">
+          {{ msg }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+    {% block content %}{% endblock %}
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

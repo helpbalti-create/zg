@@ -1,0 +1,26 @@
+{% extends 'people/base.html' %}
+{% block title %}{{ action }}{% endblock %}
+{% block content %}
+<div class="mb-3"><a href="{% url 'people:family_list' %}" class="text-muted text-decoration-none"><i class="bi bi-arrow-left"></i> Назад</a></div>
+<h4 class="fw-bold mb-4">{{ action }}</h4>
+<div class="card p-4" style="max-width:600px;">
+  <form method="post">
+    {% csrf_token %}
+    {% for field in form %}
+      <div class="mb-3">
+        <label class="form-label fw-semibold">{{ field.label }}</label>
+        {{ field }}
+      </div>
+    {% endfor %}
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-primary">💾 Сохранить</button>
+      <a href="{% url 'people:family_list' %}" class="btn btn-outline-secondary">Отмена</a>
+    </div>
+  </form>
+</div>
+<script>
+document.querySelectorAll('input:not([type=hidden]), select, textarea').forEach(el => {
+  el.classList.add(el.tagName === 'SELECT' ? 'form-select' : 'form-control');
+});
+</script>
+{% endblock %}

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Регистрация — Здоровый Город</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        body { background: linear-gradient(135deg,#1a3a5c,#2d6196); min-height:100vh; display:flex; align-items:center; padding: 30px 0; }
+        .reg-card { max-width: 580px; width:100%; margin:0 auto; border-radius:16px; }
+        .pwd-hint li { font-size:.78rem; color:#6c757d; }
+        .pwd-hint li.ok { color:#198754; }
+        .pwd-hint li.fail { color:#dc3545; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="reg-card card shadow-lg p-4">
+        <div class="text-center mb-4">
+            <i class="bi bi-heart-pulse-fill text-danger fs-2"></i>
+            <h4 class="fw-bold mt-2" style="color:#1a3a5c">Регистрация</h4>
+            <p class="text-muted small mb-0">После регистрации администратор подтвердит ваш аккаунт</p>
+        </div>
+
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} py-2 small">{{ message }}</div>
+        {% endfor %}
+
+        <form method="post" novalidate>
+            {% csrf_token %}
+            <div class="row g-3">
+                <div class="col-12">
+                    <label class="form-label fw-semibold small">{{ form.email.label }} <span class="text-danger">*</span></label>
+                    {{ form.email }}
+                    {% if form.email.errors %}<div class="text-danger small mt-1">{{ form.email.errors }}</div>{% endif %}
+                    <div class="form-text">Email используется для входа в систему</div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold small">{{ form.full_name.label }} <span class="text-danger">*</span></label>
+                    {{ form.full_name }}
+                    {% if form.full_name.errors %}<div class="text-danger small mt-1">{{ form.full_name.errors }}</div>{% endif %}
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold small">{{ form.requested_apps.label }} <span class="text-danger">*</span></label>
+                    <div class="mt-1">
+                    {% for checkbox in form.requested_apps %}
+                    <div class="form-check">
+                        {{ checkbox.tag }}
+                        <label class="form-check-label" for="{{ checkbox.id_for_label }}">{{ checkbox.choice_label }}</label>
+                    </div>
+                    {% endfor %}
+                    </div>
+                    <div class="form-text">{{ form.requested_apps.help_text }}</div>
+                    {% if form.requested_apps.errors %}<div class="text-danger small mt-1">{{ form.requested_apps.errors }}</div>{% endif %}
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold small">{{ form.department.label }}</label>
+                    {{ form.department }}
+                    <div class="form-text">{{ form.department.help_text }}</div>
+                    {% if form.department.errors %}<div class="text-danger small mt-1">{{ form.department.errors }}</div>{% endif %}
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold small">{{ form.position.label }}</label>
+                    {{ form.position }}
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold small">{{ form.phone.label }}</label>
+                    {{ form.phone }}
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold small">{{ form.password1.label }} <span class="text-danger">*</span></label>
+                    {{ form.password1 }}
+                    <div class="form-text">{{ form.password1.help_text }}</div>
+                    {% if form.password1.errors %}<div class="text-danger small mt-1">{{ form.password1.errors }}</div>{% endif %}
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold small">{{ form.password2.label }} <span class="text-danger">*</span></label>
+                    {{ form.password2 }}
+                    {% if form.password2.errors %}<div class="text-danger small mt-1">{{ form.password2.errors }}</div>{% endif %}
+                </div>
+                <div class="col-12">
+                    <ul class="pwd-hint ps-3 mb-0 list-unstyled">
+                        <li><i class="bi bi-dot me-1"></i>Минимум 10 символов</li>
+                        <li><i class="bi bi-dot me-1"></i>Хотя бы одна заглавная буква (A–Z)</li>
+                        <li><i class="bi bi-dot me-1"></i>Хотя бы один специальный символ (!@#$%...)</li>
+                        <li><i class="bi bi-dot me-1"></i>Не совпадает с вашим email или именем</li>
+                    </ul>
+                </div>
+            </div>
+
+            <button type="submit" class="btn w-100 py-2 fw-semibold text-white mt-4"
+                    style="background:#1a3a5c; border-radius:8px;">
+                <i class="bi bi-person-plus me-1"></i> Зарегистрироваться
+            </button>
+        </form>
+        <div class="text-center mt-3 text-muted small">
+            Уже есть аккаунт? <a href="{% url 'two_factor:login' %}" class="fw-semibold text-decoration-none">Войти</a>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

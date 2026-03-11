@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+{% block title %}Статья бюджета{% endblock %}
+{% block page_title %}{% if category %}Редактировать статью{% else %}Новая статья{% endif %} — {{ project.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.cat-card{border:none;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.09);overflow:hidden;}
+.cat-card .card-header{background:linear-gradient(135deg,#1a3a5c,#2d6196);color:#fff;padding:18px 24px;border:none;}
+.hint{font-size:.76rem;color:#6b7280;margin-top:3px;}
+.calc-box{background:#f0f7ff;border:1.5px solid #93c5fd;border-radius:12px;padding:14px 18px;margin-bottom:10px;}
+.calc-row{display:flex;align-items:center;gap:10px;font-size:.9rem;flex-wrap:wrap;}
+.calc-val{font-weight:700;color:#1a5fa8;font-size:1.05rem;}
+.calc-op{color:#9ca3af;font-size:1.2rem;}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-md-8">
+<div class="card cat-card">
+  <div class="card-header">
+    <h5 class="mb-0 fw-bold">
+      <i class="bi bi-list-plus me-2"></i>
+      {% if category %}Редактировать статью{% else %}Новая статья бюджета{% endif %}
+    </h5>
+    <small style="opacity:.75;">{{ project.name }}</small>
+  </div>
+  <div class="card-body p-4">
+    <form method="post">{% csrf_token %}
+      <div class="row g-3">
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">{{ form.section.label }}</label>
+          {{ form.section }}
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">{{ form.code.label }}</label>
+          {{ form.code }}
+          <div class="hint">напр. PRG21, ADM2</div>
+        </div>
+        <div class="col-md-9">
+          <label class="form-label fw-semibold">{{ form.name.label }} <span class="text-danger">*</span></label>
+          {{ form.name }}
+          {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors }}</div>{% endif %}
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">{{ form.unit_measure.label }}</label>
+          {{ form.unit_measure }}
+          <div class="hint">Month, Person/FTE, Event, Lump sum…</div>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">{{ form.frequency.label }}</label>
+          {{ form.frequency }}
+          <div class="hint">Кол-во месяцев / периодов / повторений</div>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">
+            {{ form.unit_cost.label }} <span class="text-danger">*</span>
+          </label>
+          <div class="input-group">
+            <span class="input-group-text fw-bold">$</span>
+            {{ form.unit_cost }}
+          </div>
+          <div class="hint">Стоимость одной единицы (одного месяца / одного события / одного FTE)</div>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">
+            {{ form.allocated_amount.label }} <span class="text-danger">*</span>
+          </label>
+          <div class="calc-box" id="calc-box" style="display:none;">
+            <div class="calc-row">
+              <span style="color:#555;">Цена за ед.:</span>
+              <span class="calc-val" id="cv-cost">—</span>
+              <span class="calc-op">×</span>
+              <span style="color:#555;">Периодов:</span>
+              <span class="calc-val" id="cv-freq">—</span>
+              <span class="calc-op">=</span>
+              <span class="calc-val" style="color:#065f46;font-size:1.15rem;" id="cv-total">—</span>
+              <button type="button" class="btn btn-sm btn-primary ms-2" id="apply-calc">
+                <i class="bi bi-lightning-fill me-1"></i>Применить
+              </button>
+            </div>
+          </div>
+          <div class="input-group">
+            <span class="input-group-text fw-bold">$</span>
+            {{ form.allocated_amount }}
+          </div>
+          <div class="hint">Общий лимит по статье. Введите вручную или нажмите «Применить» выше.</div>
+          {% if form.allocated_amount.errors %}<div class="text-danger small mt-1">{{ form.allocated_amount.errors }}</div>{% endif %}
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">{{ form.order.label }}</label>
+          {{ form.order }}
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">{{ form.notes.label }}</label>
+          {{ form.notes }}
+        </div>
+
+      </div>
+
+      <div class="d-flex gap-2 mt-4">
+        <button type="submit" class="btn btn-primary fw-semibold">
+          <i class="bi bi-check-lg me-1"></i>Сохранить
+        </button>
+        <a href="{% url 'project_detail' project.pk %}" class="btn btn-outline-secondary">Отмена</a>
+        {% if category %}
+        <form method="post" action="{% url 'category_delete' category.pk %}"
+              class="ms-auto" onsubmit="return confirm('Удалить статью и все её расходы?')">
+          {% csrf_token %}
+          <button class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i>Удалить</button>
+        </form>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+</div>
+</div>
+
+<script>
+const costEl  = document.getElementById('id_unit_cost');
+const freqEl  = document.getElementById('id_frequency');
+const allocEl = document.getElementById('id_allocated_amount');
+const box     = document.getElementById('calc-box');
+
+function fmtUSD(v) {
+  return '$' + v.toLocaleString('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function updateCalc() {
+  const cost = parseFloat(costEl?.value) || 0;
+  const freq = parseFloat(freqEl?.value) || 0;
+  if (cost > 0 && freq > 0) {
+    document.getElementById('cv-cost').textContent  = fmtUSD(cost);
+    document.getElementById('cv-freq').textContent  = freq;
+    document.getElementById('cv-total').textContent = fmtUSD(cost * freq);
+    box.style.display = 'block';
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+document.getElementById('apply-calc')?.addEventListener('click', () => {
+  const cost = parseFloat(costEl?.value) || 0;
+  const freq = parseFloat(freqEl?.value) || 0;
+  if (cost > 0 && freq > 0) allocEl.value = (cost * freq).toFixed(2);
+});
+
+costEl?.addEventListener('input', updateCalc);
+freqEl?.addEventListener('input', updateCalc);
+document.addEventListener('DOMContentLoaded', updateCalc);
+</script>
+{% endblock %}

@@ -1,0 +1,127 @@
+{% extends "two_factor/_base.html" %}
+
+{% block title %}Вход — Здоровый Город{% endblock %}
+
+{% block content %}
+
+{% if wizard.steps.current == 'auth' %}
+{# ── STEP 1: Email + Password ─────────────────────────────────── #}
+<h5 class="fw-bold text-center mb-1" style="color:#1a3a5c">Вход в систему</h5>
+<p class="text-center text-muted small mb-4">Введите email и пароль</p>
+
+<form method="post" autocomplete="on" novalidate>
+    {% csrf_token %}
+    {{ wizard.management_form }}
+
+    {% for field in wizard.form %}
+    <div class="mb-3">
+        <label class="form-label fw-semibold small">{{ field.label }}</label>
+        <input type="{{ field.field.widget.input_type }}"
+               name="{{ field.html_name }}"
+               id="{{ field.id_for_label }}"
+               class="form-control{% if field.errors %} is-invalid{% endif %}"
+               {% if field.field.widget.input_type == 'email' %}autocomplete="email" placeholder="ivan@example.com"{% endif %}
+               {% if field.field.widget.input_type == 'password' %}autocomplete="current-password"{% endif %}
+               value="{{ field.value|default_if_none:'' }}">
+        {% if field.errors %}
+        <div class="invalid-feedback">{{ field.errors|join:", " }}</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    <button type="submit" class="btn btn-primary-dark text-white w-100 py-2 fw-semibold mt-2">
+        <i class="bi bi-box-arrow-in-right me-1"></i> Далее
+    </button>
+</form>
+
+<!-- Social auth -->
+<div class="divider small">или войти через</div>
+<div class="d-flex gap-2">
+    <a href="/oauth/google/login/?process=login"
+       class="social-btn btn flex-grow-1 d-flex justify-content-center align-items-center gap-2 text-decoration-none text-dark">
+        <svg width="18" height="18" viewBox="0 0 48 48">
+            <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.8 2.5 30.3 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.8 6C12.3 13.2 17.7 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/>
+            <path fill="#FBBC05" d="M10.4 28.7A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.9-4.7l-7.8-6A23.9 23.9 0 0 0 0 24c0 3.9.9 7.5 2.6 10.7l7.8-6z"/>
+            <path fill="#34A853" d="M24 48c6.3 0 11.6-2.1 15.4-5.7l-7.5-5.8c-2.1 1.4-4.8 2.2-7.9 2.2-6.3 0-11.7-3.7-13.6-9.1l-7.8 6C6.6 42.6 14.6 48 24 48z"/>
+        </svg>
+        Google
+    </a>
+    <a href="/oauth/github/login/?process=login"
+       class="social-btn btn flex-grow-1 d-flex justify-content-center align-items-center gap-2 text-decoration-none text-dark">
+        <i class="bi bi-github fs-5"></i> GitHub
+    </a>
+</div>
+
+<div class="text-center mt-3 text-muted small">
+    Нет аккаунта?
+    <a href="{% url 'register' %}" class="fw-semibold text-decoration-none">Зарегистрироваться</a>
+</div>
+
+{% elif wizard.steps.current == 'token' %}
+{# ── STEP 2: 2FA TOTP code ────────────────────────────────────── #}
+<h5 class="fw-bold text-center mb-1" style="color:#1a3a5c">
+    <i class="bi bi-shield-lock me-1 text-primary"></i> Двухфакторная аутентификация
+</h5>
+<p class="text-center text-muted small mb-4">Введите код из приложения Google Authenticator / Authy</p>
+
+<form method="post" novalidate>
+    {% csrf_token %}
+    {{ wizard.management_form }}
+    {% for field in wizard.form %}
+    <div class="mb-3">
+        <label class="form-label fw-semibold small">{{ field.label }}</label>
+        <input type="text" name="{{ field.html_name }}" id="{{ field.id_for_label }}"
+               class="form-control form-control-lg text-center{% if field.errors %} is-invalid{% endif %}"
+               autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]*"
+               maxlength="6" placeholder="000000" autofocus>
+        {% if field.errors %}
+        <div class="invalid-feedback">{{ field.errors|join:", " }}</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    <button type="submit" class="btn btn-primary-dark text-white w-100 py-2 fw-semibold">
+        <i class="bi bi-check-circle me-1"></i> Подтвердить
+    </button>
+</form>
+
+{% if backup_tokens %}
+<div class="text-center mt-3 small text-muted">
+    <a href="{% url 'two_factor:backup_tokens' %}" class="text-decoration-none">Использовать резервный код</a>
+</div>
+{% endif %}
+
+{% elif wizard.steps.current == 'backup' %}
+{# ── STEP 3: Backup token ─────────────────────────────────────── #}
+<h5 class="fw-bold text-center mb-3" style="color:#1a3a5c">Резервный код</h5>
+<form method="post" novalidate>
+    {% csrf_token %}
+    {{ wizard.management_form }}
+    {% for field in wizard.form %}
+    <div class="mb-3">
+        <label class="form-label fw-semibold small">{{ field.label }}</label>
+        <input type="text" name="{{ field.html_name }}" id="{{ field.id_for_label }}"
+               class="form-control form-control-lg text-center{% if field.errors %} is-invalid{% endif %}"
+               placeholder="xxxx-xxxx" autofocus>
+        {% if field.errors %}
+        <div class="invalid-feedback">{{ field.errors|join:", " }}</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-primary-dark text-white w-100 py-2 fw-semibold">
+        <i class="bi bi-key me-1"></i> Войти с резервным кодом
+    </button>
+</form>
+
+{% endif %}
+
+<!-- Security badge (shown on auth step only) -->
+{% if wizard.steps.current == 'auth' %}
+<div class="security-badge p-2 mt-3 text-center">
+    <i class="bi bi-shield-check me-1"></i>
+    Защита: Argon2 · JWT · 2FA · Brute-force lock
+</div>
+{% endif %}
+
+{% endblock %}

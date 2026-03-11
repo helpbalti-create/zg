@@ -1,0 +1,68 @@
+{% extends 'people/base.html' %}
+{% block title %}CRM — Главная{% endblock %}
+{% block content %}
+<h4 class="mb-4 fw-bold">Главная</h4>
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card p-3 text-center">
+      <div style="font-size:2.5rem; color:#2a3a64;"><i class="bi bi-people-fill"></i></div>
+      <div class="fs-2 fw-bold">{{ total_people }}</div>
+      <div class="text-muted">Человек</div>
+      <a href="{% url 'people:person_list' %}" class="btn btn-sm btn-outline-primary mt-2">Открыть</a>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card p-3 text-center">
+      <div style="font-size:2.5rem; color:#2a3a64;"><i class="bi bi-house-heart-fill"></i></div>
+      <div class="fs-2 fw-bold">{{ total_families }}</div>
+      <div class="text-muted">Семей</div>
+      <a href="{% url 'people:family_list' %}" class="btn btn-sm btn-outline-primary mt-2">Открыть</a>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card p-3">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="fw-bold mb-0">Последние добавленные</h6>
+        <a href="{% url 'people:person_create' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus"></i> Добавить</a>
+      </div>
+      {% for person in recent_people %}
+        <a href="{% url 'people:person_detail' person.pk %}" class="d-flex align-items-center py-2 border-bottom text-decoration-none text-dark">
+          <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-3" style="width:36px;height:36px;font-size:.85rem;flex-shrink:0;">
+            {{ person.full_name|slice:":1" }}
+          </div>
+          <div>
+            <div class="fw-semibold">{{ person.full_name }}</div>
+            <div class="text-muted" style="font-size:.8rem;">{% if person.birth_date %}{{ person.birth_date }}{% else %}дата рождения не указана{% endif %}</div>
+          </div>
+        </a>
+      {% empty %}
+        <div class="text-muted">Нет данных</div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card p-3">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="fw-bold mb-0">Последние семьи</h6>
+        <a href="{% url 'people:family_create' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus"></i> Создать</a>
+      </div>
+      {% for family in recent_families %}
+        <a href="{% url 'people:family_detail' family.pk %}" class="d-flex align-items-center py-2 border-bottom text-decoration-none text-dark">
+          <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center me-3" style="width:36px;height:36px;font-size:.85rem;flex-shrink:0;">
+            <i class="bi bi-house"></i>
+          </div>
+          <div>
+            <div class="fw-semibold">{{ family.name }}</div>
+            <div class="text-muted" style="font-size:.8rem;">{{ family.member_count }} чел.</div>
+          </div>
+        </a>
+      {% empty %}
+        <div class="text-muted">Нет данных</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

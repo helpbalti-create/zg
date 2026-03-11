@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+{% block title %}Расход #{{ expense.pk }}{% endblock %}
+{% block page_title %}Расход #{{ expense.pk }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.exp-card{border:none;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.1);overflow:hidden;}
+.exp-card .card-header{background:linear-gradient(135deg,#1a3a5c,#2d6196);color:#fff;padding:20px 26px;border:none;}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;}
+.info-block{background:#f8f9fa;border-radius:10px;padding:14px 16px;}
+.info-block .lbl{font-size:.67rem;text-transform:uppercase;letter-spacing:.05em;color:#6c757d;margin-bottom:3px;}
+.info-block .val{font-size:.92rem;font-weight:600;color:#1a3a5c;}
+.code-chip{font-family:monospace;font-size:.82rem;font-weight:700;color:#1e5fa8;background:#dbeafe;padding:2px 9px;border-radius:4px;}
+.budget-bar{height:10px;background:#e5e7eb;border-radius:5px;overflow:hidden;margin-top:6px;}
+.budget-bar-fill{height:100%;border-radius:5px;}
+.attach-preview img{max-width:100%;max-height:340px;border-radius:10px;border:1px solid #dee2e6;}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-8 col-md-10">
+
+  {# ── Карточка расхода ─────────────────────────────────────────────── #}
+  <div class="card exp-card mb-4">
+    <div class="card-header">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <h5 class="mb-0 fw-bold"><i class="bi bi-receipt me-2"></i>Расход #{{ expense.pk }}</h5>
+          <small style="opacity:.75;">{{ expense.date|date:"d.m.Y" }} · {{ project.name }}</small>
+        </div>
+        <div style="font-size:1.4rem;font-weight:800;color:#7fffc4;">${{ expense.amount|floatformat:2 }}</div>
+      </div>
+    </div>
+
+    <div class="card-body p-4">
+
+      {# ── Статья и код ─────────────────────────────────────────────── #}
+      <div style="background:#eef3ff;border-radius:12px;padding:14px 18px;margin-bottom:20px;">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <span class="code-chip">{{ expense.category.code|default:"—" }}</span>
+          <div>
+            <div style="font-weight:600;font-size:.9rem;">{{ expense.category.name }}</div>
+            <div style="font-size:.73rem;color:#6c757d;">
+              Секция {{ expense.category.section.code|default:"—" }}: {{ expense.category.section.name|default:"—" }}
+            </div>
+          </div>
+          <div style="margin-left:auto;text-align:right;font-size:.78rem;color:#6c757d;">
+            Лимит статьи: <strong>${{ expense.category.allocated_amount|floatformat:2 }}</strong><br>
+            Потрачено: <strong>${{ expense.category.total_spent|floatformat:2 }}</strong>
+          </div>
+        </div>
+
+        {# Прогресс-бар кода (суммарно) #}
+        {% with pct=expense.category.spent_percent %}
+        <div style="margin-top:8px;font-size:.72rem;color:#6c757d;display:flex;justify-content:space-between;">
+          <span>Использование по статье</span><span>{{ pct }}%</span>
+        </div>
+        <div class="budget-bar">
+          <div class="budget-bar-fill" style="width:{% if pct > 100 %}100{% else %}{{ pct }}{% endif %}%;
+            background:{% if expense.category.is_over_budget %}#dc3545{% elif expense.category.is_warning %}#ffc107{% else %}#28a745{% endif %};"></div>
+        </div>
+        {% endwith %}
+      </div>
+
+      {# ── Детали расхода ───────────────────────────────────────────── #}
+      <div class="info-grid">
+        <div class="info-block" style="grid-column:1/-1;background:#e0f2fe;border:1px solid #7dd3fc;">
+          <div class="lbl" style="color:#0369a1;">Расчёт</div>
+          <div class="val" style="font-size:1rem;color:#0369a1;">
+            {{ expense.quantity|floatformat:2 }}&nbsp;<span style="font-size:.8rem;font-weight:400;">{{ expense.category.unit_measure }}</span>
+            &nbsp;×&nbsp;${{ expense.category.unit_cost|floatformat:2 }}&nbsp;/&nbsp;{{ expense.category.unit_measure }}
+            &nbsp;=&nbsp;<strong style="font-size:1.15rem;color:#198754;">${{ expense.amount|floatformat:2 }}</strong>
+          </div>
+        </div>
+        <div class="info-block">
+          <div class="lbl">Сумма</div>
+          <div class="val" style="font-size:1.2rem;color:#198754;">${{ expense.amount|floatformat:2 }}</div>
+        </div>
+        <div class="info-block">
+          <div class="lbl">Количество / Единица</div>
+          <div class="val">{{ expense.quantity|floatformat:2 }} {{ expense.category.unit_measure }}</div>
+        </div>
+        <div class="info-block">
+          <div class="lbl">Дата расхода</div>
+          <div class="val">{{ expense.date|date:"d.m.Y" }}</div>
+        </div>
+        <div class="info-block">
+          <div class="lbl">Отчётный период</div>
+          <div class="val">Период {{ expense.period }}</div>
+        </div>
+        <div class="info-block" style="grid-column:1/-1;">
+          <div class="lbl">Описание</div>
+          <div class="val">{{ expense.description }}</div>
+        </div>
+        {% if expense.document_number %}
+        <div class="info-block">
+          <div class="lbl">Номер документа</div>
+          <div class="val"><i class="bi bi-hash me-1"></i>{{ expense.document_number }}</div>
+        </div>
+        {% endif %}
+        <div class="info-block {% if not expense.document_number %}style="grid-column:1/-1;"{% endif %}">
+          <div class="lbl">Зафиксировал</div>
+          <div class="val">{{ expense.created_by|default:"—" }}</div>
+        </div>
+        <div class="info-block" style="grid-column:1/-1;">
+          <div class="lbl">Время фиксации</div>
+          <div class="val">{{ expense.created_at|date:"d.m.Y H:i" }}</div>
+        </div>
+      </div>
+
+      {# ── Вложение ──────────────────────────────────────────────────── #}
+      {% if expense.attachment %}
+      <div style="margin-top:10px;">
+        <div style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:#6c757d;margin-bottom:8px;">
+          <i class="bi bi-paperclip me-1"></i>Прикреплённый документ
+        </div>
+        {% if expense.attachment.url|lower|slice:"-4:" in ".jpg .png .gif .bmp .webp .jpeg" %}
+        <div class="attach-preview">
+          <img src="{{ expense.attachment.url }}" alt="Документ">
+        </div>
+        {% else %}
+        <a href="{{ expense.attachment.url }}" target="_blank" class="btn btn-outline-primary">
+          <i class="bi bi-download me-2"></i>Открыть / скачать файл
+        </a>
+        {% endif %}
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+  {# ── Кнопки ───────────────────────────────────────────────────────── #}
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'project_detail' project.pk %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Назад к проекту
+    </a>
+    {% if can_edit %}
+    <a href="{% url 'expense_edit' expense.pk %}" class="btn btn-outline-primary">
+      <i class="bi bi-pencil me-1"></i>Редактировать
+    </a>
+    <form method="post" action="{% url 'expense_delete' expense.pk %}"
+          onsubmit="return confirm('Удалить этот расход?');" style="margin:0;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline-danger">
+        <i class="bi bi-trash me-1"></i>Удалить
+      </button>
+    </form>
+    {% endif %}
+  </div>
+
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Ожидание подтверждения — Здоровый Город{% endblock %}
+{% block page_title %}Аккаунт на проверке{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card text-center p-4">
+      <div class="card-body">
+        <div class="fs-1 mb-3">⏳</div>
+        <h4 class="fw-bold">Аккаунт ожидает подтверждения</h4>
+        <p class="text-muted">Вы успешно зарегистрировались. Администратор должен подтвердить ваш аккаунт прежде чем вы получите доступ к системе.</p>
+        <form method="post" action="{% url 'accounts_logout' %}" class="mt-3">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline-secondary">
+            <i class="bi bi-box-arrow-right me-1"></i> Выйти
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
