@@ -27,23 +27,27 @@ def _ensure_departments():
 
 def register(request):
     if request.user.is_authenticated:
+        if not getattr(request.user, 'is_approved', False):
+            return redirect('pending_approval')
         return redirect('core:portal')
-
-    _ensure_departments()
 
     if request.method == 'POST':
         form = RegisterForm(request.POST)
         if form.is_valid():
-            form.save()
-            messages.success(
-                request,
-                '✅ Регистрация прошла успешно! Ожидайте подтверждения администратором.',
-            )
-            return redirect('two_factor:login')
+            user = form.save()
+            login(request, user, backend='accounts.backends.EmailBackend')
+            return redirect('pending_approval')
     else:
         form = RegisterForm()
 
     return render(request, 'accounts/register.html', {'form': form})
+
+
+def pending_approval(request):
+    """Страница ожидания — до одобрения администратором."""
+    if request.user.is_authenticated and getattr(request.user, 'is_approved', False):
+        return redirect('core:portal')
+    return render(request, 'core/pending_approval.html')
 
 
 def login_view(request):

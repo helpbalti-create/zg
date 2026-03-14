@@ -1,65 +1,66 @@
 from django import forms
 from django.contrib.auth import get_user_model
-from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from .models import Department
 
 User = get_user_model()
 
 
 class RegisterForm(forms.ModelForm):
-    """Registration form — email is the login, no username field."""
+    """
+    Упрощённая форма регистрации.
+    Пользователь вводит только: имя, фамилию, email и пароль.
+    Роль, отдел и доступ назначает администратор после одобрения.
+    """
 
+    first_name = forms.CharField(
+        label='Имя',
+        max_length=100,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Иван',
+            'autocomplete': 'given-name',
+        }),
+    )
+    last_name = forms.CharField(
+        label='Фамилия',
+        max_length=100,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Иванов',
+            'autocomplete': 'family-name',
+        }),
+    )
     email = forms.EmailField(
         label='Email (используется для входа)',
-        widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'ivan@example.com'}),
-    )
-    full_name = forms.CharField(
-        label='Полное имя',
-        max_length=200,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Иванов Иван Иванович'}),
-    )
-    department = forms.ModelChoiceField(
-        label='Отдел',
-        queryset=Department.objects.all(),
-        widget=forms.Select(attrs={'class': 'form-select'}),
-        help_text='Необязательно',
-        required=False,
-    )
-    requested_apps = forms.MultipleChoiceField(
-        label='К каким разделам запрашиваете доступ?',
-        choices=[
-            ('budget', '💰 Бюджет — финансовый учёт проектов'),
-            ('people', '👥 CRM — база людей и семей'),
-        ],
-        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
-        initial=['budget'],
-        help_text='Можно выбрать оба. Администратор подтвердит или изменит доступ.',
-    )
-    position = forms.CharField(
-        label='Должность', max_length=200, required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Финансовый менеджер'}),
-    )
-    phone = forms.CharField(
-        label='Телефон', max_length=50, required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': '+373 xx xxx xxx'}),
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'ivan@example.com',
+            'autocomplete': 'email',
+        }),
     )
     password1 = forms.CharField(
         label='Пароль',
         strip=False,
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'autocomplete': 'new-password'}),
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'autocomplete': 'new-password',
+        }),
         help_text='Минимум 10 символов, заглавная буква, спецсимвол.',
     )
     password2 = forms.CharField(
         label='Пароль (повтор)',
         strip=False,
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'autocomplete': 'new-password'}),
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'autocomplete': 'new-password',
+        }),
     )
 
     class Meta:
         model = User
-        fields = ('email', 'full_name', 'department', 'position', 'phone')
+        fields = ('email',)
 
     def clean_email(self):
         email = self.cleaned_data['email'].strip().lower()
@@ -85,15 +86,19 @@ class RegisterForm(forms.ModelForm):
 
     def save(self, commit=True):
         user = super().save(commit=False)
+
+        first = self.cleaned_data.get('first_name', '').strip()
+        last  = self.cleaned_data.get('last_name', '').strip()
+        user.full_name = f'{last} {first}'.strip()
+
         user.set_password(self.cleaned_data['password1'])
-        user.is_approved = False
-        selected = self.cleaned_data.get('requested_apps', ['budget'])
-        if set(selected) >= {'budget', 'people'}:
-            access = 'all'
-        else:
-            access = selected[0] if selected else 'budget'
-        user.requested_app = access
-        user.app_access    = access  # default; admin can change
+
+        user.is_approved   = False
+        user.is_staff      = False
+        user.role          = User.ROLE_VIEWER
+        user.app_access    = ''
+        user.requested_app = ''
+
         if commit:
             user.save()
         return user
@@ -135,13 +140,13 @@ class UserEditForm(forms.ModelForm):
         fields = ('full_name', 'position', 'phone')
         widgets = {
             'full_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'position': forms.TextInput(attrs={'class': 'form-control'}),
-            'phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'position':  forms.TextInput(attrs={'class': 'form-control'}),
+            'phone':     forms.TextInput(attrs={'class': 'form-control'}),
         }
         labels = {
             'full_name': 'Полное имя',
-            'position': 'Должность',
-            'phone': 'Телефон',
+            'position':  'Должность',
+            'phone':     'Телефон',
         }
 
 
@@ -167,6 +172,6 @@ class AdminUserEditForm(forms.ModelForm):
             'app_access': 'Доступ к приложению',
             'position':   'Должность',
             'phone':      'Телефон',
-            'is_approved':'Подтверждён',
-            'is_active':  'Активен',
+            'is_approved': 'Подтверждён',
+            'is_active':   'Активен',
         }

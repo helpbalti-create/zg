@@ -1,37 +1,24 @@
 """
 core/access.py
 ==============
-Миксины и декораторы безопасности для ограничения доступа по app_access.
+Миксины и декораторы для ограничения доступа по app_access.
 
-Defense-in-depth: три уровня защиты
-  1. @require_app_access / AppAccessMixin — на уровне views
-  2. AppAccessAdminMixin — на уровне каждого ModelAdmin (скрывает из меню + блокирует URL)
-  3. base.html — показывает только нужные пункты меню
-
-Использование в views:
-    @require_app_access('budget')
-    def my_view(request): ...
-
-    class MyView(BudgetAccessMixin, View): ...
-
-Использование в admin:
-    class MyModelAdmin(AppAccessAdminMixin, admin.ModelAdmin):
-        required_app_access = 'budget'
+Принцип: если у пользователя нет доступа к приложению —
+он получает 404, а не 403. Он не знает о существовании раздела.
 """
 
 from functools import wraps
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
+from django.http import Http404
 
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Декоратор для function-based views
-# ──────────────────────────────────────────────────────────────────────────────
 
 def require_app_access(app: str):
     """
-    Декоратор: требует аутентификацию + is_approved + has_app_access(app).
+    Декоратор для function-based views.
+    Нет доступа → 404 (пользователь не знает о существовании раздела).
+    Не одобрен → 403.
 
         @require_app_access('budget')
         def my_view(request): ...
@@ -44,21 +31,14 @@ def require_app_access(app: str):
             if not getattr(user, 'is_approved', False):
                 raise PermissionDenied('Ваш аккаунт ещё не подтверждён администратором.')
             if not user.has_app_access(app):
-                raise PermissionDenied(
-                    f'У вас нет доступа к разделу «{app}». '
-                    f'Обратитесь к администратору.'
-                )
+                raise Http404  # не 403 — пользователь не должен знать что раздел существует
             return view_func(request, *args, **kwargs)
         return _wrapped
     return decorator
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Миксины для class-based views
-# ──────────────────────────────────────────────────────────────────────────────
-
 class AppAccessMixin(LoginRequiredMixin):
-    """Базовый миксин. Установите required_app = 'budget' или 'people'."""
+    """Базовый миксин для class-based views. Установите required_app = 'budget' или 'people'."""
     required_app: str = ''
 
     def dispatch(self, request, *args, **kwargs):
@@ -68,9 +48,7 @@ class AppAccessMixin(LoginRequiredMixin):
         if not getattr(user, 'is_approved', False):
             raise PermissionDenied('Ваш аккаунт ещё не подтверждён.')
         if self.required_app and not user.has_app_access(self.required_app):
-            raise PermissionDenied(
-                f'Доступ к разделу «{self.required_app}» запрещён для вашего аккаунта.'
-            )
+            raise Http404  # тихо — раздел «не существует» для этого пользователя
         return super().dispatch(request, *args, **kwargs)
 
 
@@ -82,20 +60,12 @@ class PeopleAccessMixin(AppAccessMixin):
     required_app = 'people'
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Миксин для ModelAdmin — второй уровень защиты (admin-уровень)
-# ──────────────────────────────────────────────────────────────────────────────
-
 class AppAccessAdminMixin:
     """
-    Добавьте к ModelAdmin и укажите required_app_access.
+    Миксин для ModelAdmin — второй уровень защиты.
 
         class ExpenseAdmin(AppAccessAdminMixin, admin.ModelAdmin):
             required_app_access = 'budget'
-
-    Эффекты:
-      - Раздел исчезает из sidebar если у пользователя нет доступа
-      - Прямые URL запросы возвращают «недостаточно прав»
     """
     required_app_access: str = ''
 
@@ -107,7 +77,6 @@ class AppAccessAdminMixin:
             return True
         return getattr(user, 'has_app_access', lambda _: False)(self.required_app_access)
 
-    # has_module_perms определяет виден ли раздел в sidebar
     def has_module_perms(self, request):
         return self._has_access(request) and super().has_module_perms(request)
 

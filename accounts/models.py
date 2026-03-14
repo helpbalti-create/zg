@@ -77,6 +77,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     APP_ALL    = 'all'
 
     APP_CHOICES = [
+        ('',         '— Не назначен (ожидает одобрения) —'),
         (APP_BUDGET, '💰 Бюджет'),
         (APP_PEOPLE, '👥 CRM — Люди'),
         (APP_ALL,    '🔑 Все приложения'),
@@ -91,15 +92,17 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         'Запрошенный доступ',
         max_length=20,
         choices=APP_CHOICES,
-        default=APP_BUDGET,
-        help_text='Что пользователь указал при регистрации. Только для справки.',
+        default='',
+        blank=True,
+        help_text='Не используется при регистрации — доступ назначает администратор.',
     )
     app_access = models.CharField(
         'Доступ к приложению',
         max_length=20,
         choices=APP_CHOICES,
-        default=APP_BUDGET,
-        help_text='Реальный доступ. Задаётся администратором при подтверждении аккаунта.',
+        default='',
+        blank=True,
+        help_text='Задаётся администратором при подтверждении аккаунта.',
     )
 
     # ── Organisation fields ────────────────────────────────────────────────────

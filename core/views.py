@@ -1,48 +1,38 @@
 """
 core/views.py
 =============
-Портальная страница — точка входа после логина.
-Показывает карточки приложений к которым есть доступ.
+Вместо портала — редирект на первое доступное приложение.
+Если доступа нет — страница ожидания.
 """
 
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 
 
 @login_required
-def portal(request):
-    """Главная страница — показывает доступные приложения."""
+def home(request):
+    """
+    Точка входа после логина.
+    Перенаправляет сразу в нужное приложение — без промежуточного портала.
+    """
     user = request.user
 
+    # Ещё не одобрен администратором
     if not getattr(user, 'is_approved', False):
-        return render(request, 'core/pending_approval.html', status=403)
+        return render(request, 'core/pending_approval.html')
 
-    apps = []
+    # Редирект в первое доступное приложение
     if user.has_app_access('budget'):
-        apps.append({
-            'slug':        'budget',
-            'title':       'Бюджет',
-            'description': 'Управление проектами, бюджетными статьями и расходами.',
-            'icon':        '💰',
-            'url':         '/budget/',
-            'color':       '#1a56db',
-        })
+        return redirect('/budget/')
     if user.has_app_access('people'):
-        apps.append({
-            'slug':        'people',
-            'title':       'CRM — Люди',
-            'description': 'База людей, семьи, роли и связи.',
-            'icon':        '👥',
-            'url':         '/people/',
-            'color':       '#057a55',
-        })
+        return redirect('/people/')
 
-    return render(request, 'core/portal.html', {'apps': apps})
+    # Доступ есть, но ни одно приложение не назначено
+    return render(request, 'core/no_apps.html')
 
 
 def permission_denied_view(request, exception=None):
-    return render(request, 'core/403.html', status=403)
+    return render(request, 'core/403.html', {'exception': exception}, status=403)
 
 
 def not_found_view(request, exception=None):
