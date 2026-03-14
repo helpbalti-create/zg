@@ -1,11 +1,14 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import HttpResponseForbidden, HttpResponse
+from django.http import HttpResponse
 from django.utils import timezone
-from django.db.models import Sum
+from django.db.models import Sum, Prefetch, DecimalField, Value
+from django.db.models.functions import Coalesce
 from decimal import Decimal
 from collections import defaultdict
+from django.core.exceptions import PermissionDenied
+
+from core.access import require_app_access
 
 from .models import Project, BudgetSection, BudgetCategory, Expense, BudgetCorrection
 from .forms import (
@@ -15,16 +18,28 @@ from .forms import (
 from .export import export_project_to_excel
 
 
-def check_budget_access(user, require_edit=False):
-    if not user.is_authenticated:
-        return False
-    if user.is_superuser or user.role == 'admin':
-        return True
-    if not user.is_approved:
-        return False
-    if require_edit:
-        return user.can_edit_budget()
-    return user.can_view_budget()
+MONEY_FIELD = DecimalField(max_digits=14, decimal_places=2)
+
+
+def _category_spent_annotation():
+    return Coalesce(Sum('expenses__amount'), Value(Decimal('0.00')), output_field=MONEY_FIELD)
+
+
+def _project_spent_annotation():
+    return Coalesce(Sum('categories__expenses__amount'), Value(Decimal('0.00')), output_field=MONEY_FIELD)
+
+
+def _section_allocated_annotation():
+    return Coalesce(Sum('categories__allocated_amount'), Value(Decimal('0.00')), output_field=MONEY_FIELD)
+
+
+def _section_spent_annotation():
+    return Coalesce(Sum('categories__expenses__amount'), Value(Decimal('0.00')), output_field=MONEY_FIELD)
+
+
+def ensure_budget_edit_access(user):
+    if not user.can_edit_budget():
+        raise PermissionDenied('У вас нет прав на изменение данных бюджета.')
 
 
 def build_code_summary(project):
@@ -33,7 +48,7 @@ def build_code_summary(project):
     Возвращает список словарей, отсортированных по коду.
     """
     summary = {}
-    for cat in project.categories.prefetch_related('expenses').all():
+    for cat in project.categories.all():
         code = (cat.code or '').strip()
         if not code:
             continue
@@ -76,7 +91,7 @@ def build_section_code_groups(project):
     from collections import defaultdict, OrderedDict
 
     result = []
-    for section in project.sections.prefetch_related('categories__expenses').all():
+    for section in project.sections.all():
         # Собираем категории по коду, сохраняя порядок первого появления
         code_order = []
         code_cats = OrderedDict()
@@ -125,12 +140,10 @@ def build_section_code_groups(project):
     return result
 
 
-@login_required
+@require_app_access('budget')
 def project_list(request):
-    if not check_budget_access(request.user):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
 
-    projects = Project.objects.all().prefetch_related('categories')
+    projects = Project.objects.annotate(total_spent=_project_spent_annotation())
     active = projects.filter(status=Project.STATUS_ACTIVE)
     completed = projects.filter(status=Project.STATUS_COMPLETED)
     archived = projects.filter(status=Project.STATUS_ARCHIVED)
@@ -139,14 +152,13 @@ def project_list(request):
         'active_projects': active,
         'completed_projects': completed,
         'archived_projects': archived,
-        'can_edit': check_budget_access(request.user, require_edit=True),
+        'can_edit': request.user.can_edit_budget(),
     })
 
 
-@login_required
+@require_app_access('budget')
 def project_create(request):
-    if not check_budget_access(request.user, require_edit=True):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
+    ensure_budget_edit_access(request.user)
 
     if request.method == 'POST':
         form = ProjectForm(request.POST)
@@ -162,14 +174,22 @@ def project_create(request):
     return render(request, 'budget/project_form.html', {'form': form, 'title': 'Новый проект'})
 
 
-@login_required
+@require_app_access('budget')
 def project_detail(request, pk):
-    if not check_budget_access(request.user):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
 
-    project = get_object_or_404(Project, pk=pk)
-    sections = project.sections.prefetch_related('categories__expenses').all()
-    categories_no_section = project.categories.filter(section__isnull=True).prefetch_related('expenses')
+    category_queryset = BudgetCategory.objects.annotate(total_spent=_category_spent_annotation())
+    section_queryset = BudgetSection.objects.annotate(
+        total_allocated=_section_allocated_annotation(),
+        total_spent=_section_spent_annotation(),
+    ).prefetch_related(Prefetch('categories', queryset=category_queryset))
+    project_queryset = Project.objects.annotate(total_spent=_project_spent_annotation()).prefetch_related(
+        Prefetch('sections', queryset=section_queryset),
+        Prefetch('categories', queryset=category_queryset),
+    )
+
+    project = get_object_or_404(project_queryset, pk=pk)
+    sections = project.sections.all()
+    categories_no_section = [cat for cat in project.categories.all() if cat.section_id is None]
     recent_expenses = Expense.objects.filter(
         category__project=project
     ).select_related('category', 'created_by').order_by('-date', '-created_at')[:200]
@@ -180,7 +200,7 @@ def project_detail(request, pk):
     # Коды с перерасходом — для алертов вверху страницы
     over_codes = [cs for cs in code_summary if cs['is_over']]
 
-    can_edit = check_budget_access(request.user, require_edit=True)
+    can_edit = request.user.can_edit_budget()
 
     sections_with_groups = build_section_code_groups(project)
 
@@ -197,10 +217,9 @@ def project_detail(request, pk):
     })
 
 
-@login_required
+@require_app_access('budget')
 def project_edit(request, pk):
-    if not check_budget_access(request.user, require_edit=True):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
+    ensure_budget_edit_access(request.user)
 
     project = get_object_or_404(Project, pk=pk)
     if project.status == Project.STATUS_COMPLETED:
@@ -219,10 +238,9 @@ def project_edit(request, pk):
     return render(request, 'budget/project_form.html', {'form': form, 'title': 'Редактировать проект', 'project': project})
 
 
-@login_required
+@require_app_access('budget')
 def project_complete(request, pk):
-    if not check_budget_access(request.user, require_edit=True):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
+    ensure_budget_edit_access(request.user)
 
     project = get_object_or_404(Project, pk=pk)
     if request.method == 'POST':
@@ -239,10 +257,9 @@ def project_complete(request, pk):
 
 # --- Sections ---
 
-@login_required
+@require_app_access('budget')
 def section_create(request, project_pk):
-    if not check_budget_access(request.user, require_edit=True):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
+    ensure_budget_edit_access(request.user)
 
     project = get_object_or_404(Project, pk=project_pk)
     if request.method == 'POST':
@@ -259,10 +276,9 @@ def section_create(request, project_pk):
     return render(request, 'budget/section_form.html', {'form': form, 'project': project})
 
 
-@login_required
+@require_app_access('budget')
 def section_edit(request, pk):
-    if not check_budget_access(request.user, require_edit=True):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
+    ensure_budget_edit_access(request.user)
 
     section = get_object_or_404(BudgetSection, pk=pk)
     if request.method == 'POST':
@@ -278,10 +294,9 @@ def section_edit(request, pk):
 
 # --- Categories ---
 
-@login_required
+@require_app_access('budget')
 def category_create(request, project_pk):
-    if not check_budget_access(request.user, require_edit=True):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
+    ensure_budget_edit_access(request.user)
 
     project = get_object_or_404(Project, pk=project_pk)
     if request.method == 'POST':
@@ -302,10 +317,9 @@ def category_create(request, project_pk):
     return render(request, 'budget/category_form.html', {'form': form, 'project': project})
 
 
-@login_required
+@require_app_access('budget')
 def category_edit(request, pk):
-    if not check_budget_access(request.user, require_edit=True):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
+    ensure_budget_edit_access(request.user)
 
     category = get_object_or_404(BudgetCategory, pk=pk)
     project = category.project
@@ -333,10 +347,9 @@ def category_edit(request, pk):
     return render(request, 'budget/category_form.html', {'form': form, 'project': project, 'category': category})
 
 
-@login_required
+@require_app_access('budget')
 def category_delete(request, pk):
-    if not check_budget_access(request.user, require_edit=True):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
+    ensure_budget_edit_access(request.user)
 
     category = get_object_or_404(BudgetCategory, pk=pk)
     project_pk = category.project.pk
@@ -346,15 +359,13 @@ def category_delete(request, pk):
     return redirect('project_detail', pk=project_pk)
 
 
-@login_required
+@require_app_access('budget')
 def category_detail(request, pk):
-    if not check_budget_access(request.user):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
 
     category = get_object_or_404(BudgetCategory, pk=pk)
     project = category.project
     expenses = category.expenses.select_related('created_by').order_by('period', 'date')
-    can_edit = check_budget_access(request.user, require_edit=True)
+    can_edit = request.user.can_edit_budget()
 
     return render(request, 'budget/category_detail.html', {
         'category': category,
@@ -366,10 +377,9 @@ def category_detail(request, pk):
 
 # --- Expenses ---
 
-@login_required
+@require_app_access('budget')
 def expense_add(request, project_pk):
-    if not check_budget_access(request.user, require_edit=True):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
+    ensure_budget_edit_access(request.user)
 
     project = get_object_or_404(Project, pk=project_pk)
     if project.status == Project.STATUS_COMPLETED:
@@ -436,10 +446,9 @@ def expense_add(request, project_pk):
     return render(request, 'budget/expense_form.html', {'form': form, 'project': project})
 
 
-@login_required
+@require_app_access('budget')
 def expense_edit(request, pk):
-    if not check_budget_access(request.user, require_edit=True):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
+    ensure_budget_edit_access(request.user)
 
     expense = get_object_or_404(Expense, pk=pk)
     project = expense.category.project
@@ -455,10 +464,9 @@ def expense_edit(request, pk):
     return render(request, 'budget/expense_form.html', {'form': form, 'project': project, 'expense': expense})
 
 
-@login_required
+@require_app_access('budget')
 def expense_delete(request, pk):
-    if not check_budget_access(request.user, require_edit=True):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
+    ensure_budget_edit_access(request.user)
 
     expense = get_object_or_404(Expense, pk=pk)
     project_pk = expense.category.project.pk
@@ -470,10 +478,9 @@ def expense_delete(request, pk):
 
 # --- Corrections ---
 
-@login_required
+@require_app_access('budget')
 def correction_add(request, project_pk):
-    if not check_budget_access(request.user, require_edit=True):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
+    ensure_budget_edit_access(request.user)
 
     project = get_object_or_404(Project, pk=project_pk)
     if request.method == 'POST':
@@ -503,14 +510,12 @@ def correction_add(request, project_pk):
 
 
 
-@login_required
+@require_app_access('budget')
 def expense_detail(request, pk):
-    if not check_budget_access(request.user):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
 
     expense = get_object_or_404(Expense, pk=pk)
     project = expense.category.project
-    can_edit = check_budget_access(request.user, require_edit=True)
+    can_edit = request.user.can_edit_budget()
     return render(request, 'budget/expense_detail.html', {
         'expense': expense,
         'project': project,
@@ -520,10 +525,8 @@ def expense_detail(request, pk):
 
 # --- Export ---
 
-@login_required
+@require_app_access('budget')
 def export_excel(request, project_pk):
-    if not check_budget_access(request.user):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
 
     project = get_object_or_404(Project, pk=project_pk)
     response = HttpResponse(
@@ -536,14 +539,13 @@ def export_excel(request, project_pk):
 
 # --- Import expenses from budget ---
 
-@login_required
+@require_app_access('budget')
 def import_expenses_preview(request, project_pk):
     """
     GET:  показать предпросмотр что будет импортировано
     POST: выполнить импорт (если confirm=1)
     """
-    if not check_budget_access(request.user, require_edit=True):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
+    ensure_budget_edit_access(request.user)
 
     project = get_object_or_404(Project, pk=project_pk)
 
@@ -673,10 +675,9 @@ import json
 import tempfile
 import os
 
-@login_required
+@require_app_access('budget')
 def full_import(request):
-    if not check_budget_access(request.user, require_edit=True):
-        return HttpResponseForbidden(render(request, 'core/403.html', {}, status=403).content)
+    ensure_budget_edit_access(request.user)
 
     try:
         from dateutil.relativedelta import relativedelta
