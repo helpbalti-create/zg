@@ -50,7 +50,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = User
         fields = (
             'id', 'email', 'full_name', 'role', 'position',
-            'phone', 'department', 'department_name',
+            'phone', 'department', 'department_name', 'app_access',
             'is_approved', 'two_factor_enabled', 'date_joined',
         )
         read_only_fields = ('id', 'email', 'role', 'is_approved', 'date_joined')

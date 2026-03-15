@@ -1,34 +1,30 @@
 """
 core/views.py
 =============
-Вместо портала — редирект на первое доступное приложение.
-Если доступа нет — страница ожидания.
+Django-маршруты `/` и `/portal/` теперь редиректят на Vue-фронтенд.
+
+Вся визуальная часть живёт на FRONTEND_URL (Vue SPA).
+Django отвечает только за API (/api/*), OAuth (/oauth/*) и Admin (/admin/).
 """
 
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
+
+
+def _frontend(path: str = '') -> str:
+    """Строит абсолютный URL на Vue-фронтенд."""
+    base = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000').rstrip('/')
+    return f'{base}/{path.lstrip("/")}'
 
 
 @login_required
 def home(request):
     """
-    Точка входа после логина.
-    Перенаправляет сразу в нужное приложение — без промежуточного портала.
+    Старая точка входа Django — теперь просто редиректит на Vue.
+    Браузер попадает сюда только если зашёл напрямую на 127.0.0.1:8000/.
     """
-    user = request.user
-
-    # Ещё не одобрен администратором
-    if not getattr(user, 'is_approved', False):
-        return render(request, 'core/pending_approval.html')
-
-    # Редирект в первое доступное приложение
-    if user.has_app_access('budget'):
-        return redirect('/budget/')
-    if user.has_app_access('people'):
-        return redirect('/people/')
-
-    # Доступ есть, но ни одно приложение не назначено
-    return render(request, 'core/no_apps.html')
+    return redirect(_frontend('/'))
 
 
 def permission_denied_view(request, exception=None):

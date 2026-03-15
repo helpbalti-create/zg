@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.sites',          # required by allauth
 
+
     # Third-party
     'rest_framework',
     'rest_framework_simplejwt',
@@ -57,12 +58,15 @@ INSTALLED_APPS = [
     'budget',
     'core',
     'people',
+
+    'corsheaders',
 ]
 
 SITE_ID = 1
 
 # ─── MIDDLEWARE ────────────────────────────────────────────────────────────────
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -208,15 +212,15 @@ SOCIALACCOUNT_PROVIDERS = {
         'AUTH_PARAMS': {'access_type': 'online'},
         'APP': {
             'client_id': config('GOOGLE_CLIENT_ID', default=''),
-            'secret': config('GOOGLE_CLIENT_SECRET', default=''),
-            'key': '',
+            'secret':    config('GOOGLE_CLIENT_SECRET', default=''),
+            'key':       '',
         },
     },
     'github': {
         'SCOPE': ['user:email'],
         'APP': {
             'client_id': config('GITHUB_CLIENT_ID', default=''),
-            'secret': config('GITHUB_CLIENT_SECRET', default=''),
+            'secret':    config('GITHUB_CLIENT_SECRET', default=''),
         },
     },
 }
@@ -225,9 +229,12 @@ SOCIALACCOUNT_PROVIDERS = {
 TWO_FACTOR_PATCH_ADMIN = True
 TWO_FACTOR_CALL_GATEWAY = None
 TWO_FACTOR_SMS_GATEWAY = None
-LOGIN_URL = 'two_factor:login'
-LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = 'two_factor:login'
+LOGIN_URL = '/oauth/login/'  # allauth login page — must be a real Django URL
+LOGIN_REDIRECT_URL    = '/accounts/oauth/success/'  # после Google/GitHub → JWT → Vue
+LOGOUT_REDIRECT_URL   = '/login'
+SOCIALACCOUNT_ADAPTER = 'accounts.social_adapter.SocialAccountAdapter'
+ACCOUNT_ADAPTER       = 'accounts.social_adapter.AccountAdapter'
+SOCIALACCOUNT_AUTO_SIGNUP = True
 
 # ─── SECURITY SETTINGS ─────────────────────────────────────────────────────────
 # Production HTTPS hardening (only when DEBUG=False)
@@ -256,11 +263,16 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 #      Must stay False (Django's default) so JS can include it in requests.
 CSRF_COOKIE_HTTPONLY = False
 
-CSRF_TRUSTED_ORIGINS = config(
-    'CSRF_TRUSTED_ORIGINS',
-    default='http://127.0.0.1:8000,http://localhost:8000',
-    cast=Csv(),
-)
+# CSRF_TRUSTED_ORIGINS = config(
+#     'CSRF_TRUSTED_ORIGINS',
+#     default='http://127.0.0.1:8000,http://localhost:8000',
+#     cast=Csv(),
+# )
+CSRF_TRUSTED_ORIGINS = [
+    'http://127.0.0.1:8000',
+    'http://localhost:8000',
+    'http://localhost:3000',
+]
 
 # ─── LOCALIZATION ──────────────────────────────────────────────────────────────
 LANGUAGE_CODE = 'ru-ru'
@@ -293,3 +305,21 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@zdravy-gorod.
 
 # ─── ERROR HANDLERS ────────────────────────────────────────────────────────────
 handler403 = 'core.views.permission_denied_view'
+
+
+CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:3000', cast=Csv())
+CORS_ALLOW_CREDENTIALS = True
+
+# ─── FRONTEND URL ──────────────────────────────────────────────────────────────
+# Where the Vue SPA is hosted. Used to build the post-OAuth redirect URL.
+# Dev:  http://localhost:3000
+# Prod: https://zdravy-gorod.md
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000').rstrip('/')
+
+
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_DOMAIN = None
+
+AXES_WHITELIST_CALLABLE = 'accounts.utils.axes_oauth_whitelist'
+AXES_NEVER_LOCKOUT_GET = True
+

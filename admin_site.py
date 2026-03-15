@@ -13,8 +13,7 @@ zdoroviy_gorod/admin_site.py
 """
 
 from django.contrib.admin import AdminSite
-from django.contrib.auth import REDIRECT_FIELD_NAME
-from django.http import HttpResponseForbidden
+from django.conf import settings
 
 # app_label → required app_access values
 APP_LABEL_ACCESS: dict[str, list[str]] = {
@@ -37,6 +36,12 @@ class AppAwareAdminSite(AdminSite):
     site_header  = '🏙 Здоровый Город — Управление'
     site_title   = 'Здоровый Город'
     index_title  = 'Панель администратора'
+
+    @property
+    def site_url(self):
+        # "View site" button → Vue frontend, not the Django server.
+        # Reads FRONTEND_URL from .env so it works in both dev and prod.
+        return getattr(settings, 'FRONTEND_URL', 'http://localhost:3000') + '/'
 
     def has_permission(self, request):
         """Пользователь должен быть активным, подтверждённым и staff."""

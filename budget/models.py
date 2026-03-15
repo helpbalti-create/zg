@@ -53,6 +53,11 @@ class Project(models.Model):
 
     @property
     def total_spent(self):
+        # Если queryset был аннотирован (.annotate(total_spent=...)), Django кладёт
+        # значение в __dict__ экземпляра. Проверяем его первым — это один SQL-запрос
+        # на весь список вместо N+1. Если аннотации нет — идём в БД напрямую.
+        if 'total_spent' in self.__dict__:
+            return self.__dict__['total_spent'] or Decimal('0')
         return Expense.objects.filter(
             category__project=self
         ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
@@ -91,12 +96,18 @@ class BudgetSection(models.Model):
 
     @property
     def total_allocated(self):
+        # Используем аннотацию из queryset, если она есть (см. комментарий в Project.total_spent)
+        if 'total_allocated' in self.__dict__:
+            return self.__dict__['total_allocated'] or Decimal('0')
         return self.categories.aggregate(
             total=models.Sum('allocated_amount')
         )['total'] or Decimal('0')
 
     @property
     def total_spent(self):
+        # Используем аннотацию из queryset, если она есть (см. комментарий в Project.total_spent)
+        if 'total_spent' in self.__dict__:
+            return self.__dict__['total_spent'] or Decimal('0')
         return Expense.objects.filter(
             category__section=self
         ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
@@ -138,6 +149,9 @@ class BudgetCategory(models.Model):
 
     @property
     def total_spent(self):
+        # Используем аннотацию из queryset, если она есть (см. комментарий в Project.total_spent)
+        if 'total_spent' in self.__dict__:
+            return self.__dict__['total_spent'] or Decimal('0')
         return self.expenses.aggregate(
             total=models.Sum('amount')
         )['total'] or Decimal('0')

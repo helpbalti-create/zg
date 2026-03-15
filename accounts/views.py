@@ -131,3 +131,23 @@ def user_edit(request, pk):
         form = AdminUserEditForm(instance=user)
 
     return render(request, 'accounts/user_edit.html', {'form': form, 'edited_user': user})
+
+
+def oauth_success(request):
+    """После Google/GitHub OAuth — выдаём JWT и редиректим во Vue."""
+    from rest_framework_simplejwt.tokens import RefreshToken
+    from django.conf import settings
+
+    user = request.user
+    if not user.is_authenticated:
+        return redirect(f'{settings.FRONTEND_URL}/login?error=oauth_failed')
+
+    if not user.is_approved:
+        user.is_approved = True
+        user.save(update_fields=['is_approved'])
+
+    refresh = RefreshToken.for_user(user)
+    access = str(refresh.access_token)
+    refresh_token = str(refresh)
+
+    return redirect(f'{settings.FRONTEND_URL}/oauth/callback?access={access}&refresh={refresh_token}')

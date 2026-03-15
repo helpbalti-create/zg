@@ -1,16 +1,25 @@
-# Secrets — NEVER commit these
-.env
-
-# Python
+# ─── Python / Django ───────────────────────────────────────────────────────────
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
-
-# Django
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.so
 db.sqlite3
 staticfiles/
 media/
 
-# IDE
-.vscode/
-.idea/
+# ─── Environment — NEVER commit secrets ───────────────────────────────────────
+.env
+.env.local
+# .env.example is committed on purpose (no secrets, just documentation)
+
+# ─── Vue / Node ───────────────────────────────────────────────────────────────
+vue/node_modules/
+vue/dist/
+vue/.env.local
+# .env.development and .env.production are committed — they contain no secrets,
+# only public config like VITE_BACKEND_URL.

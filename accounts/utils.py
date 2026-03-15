@@ -23,3 +23,14 @@ def get_client_ip(request) -> str:
     else:
         ip = request.META.get("REMOTE_ADDR", "")
     return ip
+
+
+def axes_oauth_whitelist(request) -> bool:
+    """
+    Tell axes to never lock out OAuth callback URLs.
+
+    These endpoints have no password field — they receive a one-time code
+    from Google/GitHub. Counting them as login failures would be wrong, and
+    axes blocking them returns 401 to the OAuth provider's redirect.
+    """
+    return request.path.startswith('/oauth/')

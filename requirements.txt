@@ -24,7 +24,10 @@ django-two-factor-auth>=1.15.0
 qrcode>=7.4.2
 python-dateutil
 Django>=5.1
-request
+requests
+cryptography
+djangorestframework
+django-cors-headers
 
 # ─── INSTALLATION ORDER (pip install) ────────────────────────────────────────
 # pip install Django argon2-cffi python-decouple djangorestframework \
